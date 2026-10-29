@@ -49,11 +49,14 @@ async function overpass(query) {
   let lastError
   for (const endpoint of OVERPASS) {
     try {
-      return await getJson(endpoint, {
+      const res = await getJson(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: 'data=' + encodeURIComponent(query),
       })
+      // A "remark" means Overpass stopped early (out of time or memory): the answer is incomplete.
+      if (res.remark) throw new Error(`incomplete answer: ${res.remark}`)
+      return res
     } catch (e) {
       lastError = e
       console.warn(`Overpass ${endpoint} failed: ${e.message}`)
@@ -64,21 +67,18 @@ async function overpass(query) {
 
 const bbox = `${AREA.south},${AREA.west},${AREA.north},${AREA.east}`
 
-const PLACES_QUERY = `[out:json][timeout:240][bbox:${bbox}];
-(
-  nwr["leisure"="park"]["name"];
-  nwr["leisure"="nature_reserve"]["name"];
-  nwr["boundary"="protected_area"]["name"];
-  nwr["leisure"="garden"]["name"];
-  nwr["tourism"="viewpoint"]["name"];
-  nwr["place"="square"]["name"];
-  nwr["highway"="pedestrian"]["area"="yes"]["name"~"torg|plats",i];
-  nwr["leisure"="bathing_place"]["name"];
-  nwr["leisure"="swimming_area"]["name"];
-  nwr["natural"="beach"]["name"];
-  nwr["amenity"="library"]["name"];
-);
-out tags geom;`
+// Several small queries instead of one big one: Overpass quietly cuts a heavy answer short,
+// and the big park and reserve outlines are the heaviest part.
+const q = (body, out = 'out tags geom;') => `[out:json][timeout:240][maxsize:1073741824][bbox:${bbox}];(${body});${out}`
+const PLACE_QUERIES = {
+  parks: q('wr["leisure"="park"]["name"];'),
+  parkPoints: q('node["leisure"="park"]["name"];', 'out tags;'),
+  reserves: q('wr["leisure"="nature_reserve"]["name"];wr["boundary"="protected_area"]["name"];'),
+  gardens: q('nwr["leisure"="garden"]["name"];'),
+  water: q('nwr["leisure"="bathing_place"]["name"];nwr["leisure"="swimming_area"]["name"];nwr["natural"="beach"]["name"];'),
+  squares: q('nwr["place"="square"]["name"];nwr["highway"="pedestrian"]["area"="yes"]["name"~"torg|plats",i];'),
+  points: q('nwr["tourism"="viewpoint"]["name"];nwr["amenity"="library"]["name"];', 'out tags center;'),
+}
 
 const FACILITIES_QUERY = `[out:json][timeout:180][bbox:${bbox}];
 (
@@ -89,6 +89,9 @@ const FACILITIES_QUERY = `[out:json][timeout:180][bbox:${bbox}];
   nwr["leisure"="dog_park"];
 );
 out tags center qt;`
+
+// Well-known places that must be on the map. If several are missing, the week is broken.
+const LANDMARKS = ['Slottsskogen', 'Delsjö', 'botaniska trädgård', 'Keillers park', 'Kungsparken', 'Trädgårdsföreningen', 'Ramberget', 'Stora Amundön']
 
 // ---------- geometry ----------
 
@@ -132,6 +135,7 @@ function rings(ways) {
 }
 
 function shape(el) {
+  if (el.center && !el.geometry && !el.members) return { lat: el.center.lat, lon: el.center.lon, m2: null, box: [el.center.lat, el.center.lon, el.center.lat, el.center.lon] }
   if (el.type === 'node') return { lat: el.lat, lon: el.lon, m2: null, box: [el.lat, el.lon, el.lat, el.lon] }
   let outer = []
   let inner = []
@@ -324,7 +328,18 @@ function dogRulesFor(name, rules) {
 // ---------- main ----------
 
 async function main() {
-  const placesRaw = fixture ? JSON.parse(readFileSync(fixture, 'utf8')).places : await overpass(PLACES_QUERY)
+  const report = { generated: new Date().toISOString(), queries: {}, landmarks: {} }
+  let placesRaw
+  if (fixture) placesRaw = JSON.parse(readFileSync(fixture, 'utf8')).places
+  else {
+    placesRaw = { elements: [] }
+    for (const [name, query] of Object.entries(PLACE_QUERIES)) {
+      const res = await overpass(query)
+      report.queries[name] = res.elements.length
+      placesRaw.elements.push(...res.elements)
+      await sleep(2000)
+    }
+  }
   const facilitiesRaw = fixture ? JSON.parse(readFileSync(fixture, 'utf8')).facilities : await overpass(FACILITIES_QUERY)
   const dogRules = JSON.parse(readFileSync('data/dog-rules-goteborg.json', 'utf8'))
 
@@ -355,6 +370,7 @@ async function main() {
     const s = shape(e)
     if (!s) continue
     const ha = s.m2 != null ? s.m2 / 10000 : null
+    // A point-only park (no outline mapped) is still a park; give it no size.
     places.push({ e, tags: t, kind, ...s, ha })
   }
 
@@ -417,6 +433,15 @@ async function main() {
     water: water.map((x) => [round(x.lat), round(x.lon)]),
     dogParks: dogParks.map((x) => ({ ...x, lat: round(x.lat), lon: round(x.lon) })),
     dogRules,
+  }
+
+  for (const l of LANDMARKS) report.landmarks[l] = out.some((p) => p.name.toLowerCase().includes(l.toLowerCase()))
+  report.counts = data.counts
+  const missing = Object.entries(report.landmarks).filter(([, ok]) => !ok).map(([l]) => l)
+  if (!fixture) writeFileSync('data/report.json', JSON.stringify(report, null, 1))
+  if (!fixture && missing.length > 2) {
+    console.error(`Landmarks missing: ${missing.join(', ')}. Not replacing the data file.`)
+    process.exit(1)
   }
 
   // Sanity check: never replace a good file with a broken week.
