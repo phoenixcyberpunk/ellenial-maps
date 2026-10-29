@@ -1,0 +1,17 @@
+{
+  "name": "ellenial-maps",
+  "private": true,
+  "description": "maps.ellenial.app: a calm, free, non-tracking map of places to rest and recharge.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "data": "node scripts/build-data.mjs"
+  },
+  "devDependencies": {
+    "@fontsource/fraunces": "^5.0.0",
+    "@fontsource/instrument-sans": "^5.0.0",
+    "maplibre-gl": "^5.0.0"
+  },
+  "engines": { "node": ">=20" }
+}
