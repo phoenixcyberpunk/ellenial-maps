@@ -156,3 +156,8 @@ button { font: inherit; color: inherit; }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 .placeholder.hero__img { display: flex; font-size: 15px; }
+
+/* small phones: keep the brand and the dog switch on one line each */
+.brand, .dog-switch:not(.dog-switch--row) { white-space: nowrap; }
+@media (max-width: 380px) { .brand { font-size: 20px; } .dog-switch:not(.dog-switch--row) { font-size: 12px; gap: 6px; } }
+.fix { display: inline-flex; align-items: center; min-height: 44px; }
