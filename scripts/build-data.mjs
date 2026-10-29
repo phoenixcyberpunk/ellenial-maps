@@ -26,6 +26,10 @@ const args = process.argv.slice(2)
 const fixture = args.includes('--fixture') ? args[args.indexOf('--fixture') + 1] : null
 const withPhotos = !args.includes('--no-photos')
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+// What happened on the way, written to data/report.json so problems are visible in the repo.
+const trail = []
+const report = { generated: new Date().toISOString(), queries: {}, landmarks: {}, trail }
+const writeReport = () => { if (!fixture) writeFileSync('data/report.json', JSON.stringify(report, null, 1)) }
 
 // ---------- fetching ----------
 
@@ -34,7 +38,7 @@ async function getJson(url, init = {}, tries = 3) {
   for (let i = 0; i < tries; i++) {
     try {
       const res = await fetch(url, { ...init, headers: { 'User-Agent': USER_AGENT, Accept: 'application/json', ...init.headers } })
-      if (res.status === 429 || res.status >= 500) throw new Error(`${res.status} from ${new URL(url).host}`)
+      if (res.status === 429 || res.status >= 500) throw new Error(`${res.status} from ${new URL(url).host}: ${(await res.text()).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 200)}`)
       if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0, 200)}`)
       return await res.json()
     } catch (e) {
@@ -56,9 +60,11 @@ async function overpass(query) {
       })
       // A "remark" means Overpass stopped early (out of time or memory): the answer is incomplete.
       if (res.remark) throw new Error(`incomplete answer: ${res.remark}`)
+      trail.push(`ok ${new URL(endpoint).host}: ${res.elements.length} elements`)
       return res
     } catch (e) {
       lastError = e
+      trail.push(`failed ${new URL(endpoint).host}: ${String(e.message).slice(0, 300)}`)
       console.warn(`Overpass ${endpoint} failed: ${e.message}`)
     }
   }
@@ -328,18 +334,19 @@ function dogRulesFor(name, rules) {
 // ---------- main ----------
 
 async function main() {
-  const report = { generated: new Date().toISOString(), queries: {}, landmarks: {} }
   let placesRaw
   if (fixture) placesRaw = JSON.parse(readFileSync(fixture, 'utf8')).places
   else {
     placesRaw = { elements: [] }
     for (const [name, query] of Object.entries(PLACE_QUERIES)) {
+      trail.push(`query ${name}`)
       const res = await overpass(query)
       report.queries[name] = res.elements.length
       placesRaw.elements.push(...res.elements)
       await sleep(2000)
     }
   }
+  if (!fixture) trail.push("query facilities")
   const facilitiesRaw = fixture ? JSON.parse(readFileSync(fixture, 'utf8')).facilities : await overpass(FACILITIES_QUERY)
   const dogRules = JSON.parse(readFileSync('data/dog-rules-goteborg.json', 'utf8'))
 
@@ -438,7 +445,7 @@ async function main() {
   for (const l of LANDMARKS) report.landmarks[l] = out.some((p) => p.name.toLowerCase().includes(l.toLowerCase()))
   report.counts = data.counts
   const missing = Object.entries(report.landmarks).filter(([, ok]) => !ok).map(([l]) => l)
-  if (!fixture) writeFileSync('data/report.json', JSON.stringify(report, null, 1))
+  writeReport()
   if (!fixture && missing.length > 2) {
     console.error(`Landmarks missing: ${missing.join(', ')}. Not replacing the data file.`)
     process.exit(1)
@@ -465,6 +472,9 @@ async function main() {
 }
 
 main().catch((e) => {
+  trail.push(`stopped: ${String(e.message || e).slice(0, 300)}`)
+  report.failed = true
+  writeReport()
   console.error(e)
   process.exit(1)
 })
