@@ -90,7 +90,7 @@ const PLACE_QUERIES = {
   reserves: q('wr["leisure"="nature_reserve"]["name"];wr["boundary"="protected_area"]["name"];'),
   gardens: q('nwr["leisure"="garden"]["name"];'),
   water: q('nwr["leisure"="bathing_place"]["name"];nwr["leisure"="swimming_area"]["name"];nwr["natural"="beach"]["name"];'),
-  squares: q('nwr["place"="square"]["name"];nwr["highway"="pedestrian"]["area"="yes"]["name"~"torg|plats",i];'),
+  squares: q('nwr["place"="square"]["name"];nwr["highway"="pedestrian"]["area"="yes"]["name"~"torg",i];'),
   points: q('nwr["tourism"="viewpoint"]["name"];nwr["amenity"="library"]["name"];', 'out tags center;'),
 }
 
@@ -226,8 +226,13 @@ function kindOf(t) {
   return null
 }
 
+// Names that are just a type ("Bibliotek", "Park") or a placeholder are mapping slips, not places.
+const GENERIC = /^(bibliotek|library|park|parken|lekplats|torg|torget|plats|garden|trädgård|naturspot \d+|utsikt|viewpoint)$/i
+
 function keep(t, kind) {
   if (isPrivate(t)) return false
+  if (GENERIC.test(t.name.trim())) return false
+  if (kind === 'square' && /kryss|korsning|rondell|cirkulation|punkten$/i.test(t.name)) return false
   if (kind === 'garden' && /residential|private|community|allotment/.test(t['garden:type'] || '')) return false
   if (kind === 'reserve') {
     // Only real protected nature, not e.g. water-protection zones.
@@ -421,8 +426,9 @@ async function main() {
       name: t.name,
       kind: p.kind,
       setting: settingOf(p.kind, p.ha),
-      size: p.ha == null ? null : p.ha >= BIG_HA ? 'big' : 'small',
-      ha: p.ha == null ? null : Math.round(p.ha * 10) / 10,
+      // A library's outline is its building, so its size says nothing about the space to relax in.
+      size: p.ha == null || p.kind === 'library' ? null : p.ha >= BIG_HA ? 'big' : 'small',
+      ha: p.ha == null || p.kind === 'library' ? null : Math.round(p.ha * 10) / 10,
       lat: round(p.lat), lon: round(p.lon),
       fee: t.fee === 'yes',
       website: website(t),

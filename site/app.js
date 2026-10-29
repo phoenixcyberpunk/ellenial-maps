@@ -116,12 +116,18 @@
       class: 'dog-switch' + (withHint ? ' dog-switch--row' : ''), 'aria-pressed': String(state.dog), type: 'button',
       onclick: () => { state.dog = !state.dog; store.set('dog', state.dog); render() },
     },
-    withHint ? h('span', { class: 'dog-switch__text' }, h('span', { class: 'dog-switch__label' }, s.dogSwitch), h('span', { class: 'dog-switch__hint' }, s.dogSwitchHint)) : s.dogSwitch,
+    withHint ? h('span', { class: 'dog-switch__text' }, h('span', { class: 'dog-switch__label' }, s.dogSwitchLong), h('span', { class: 'dog-switch__hint' }, s.dogSwitchHint)) : s.dogSwitch,
     h('span', { class: 'switch', 'aria-hidden': 'true' }, h('span', { class: 'switch__knob' })))
   }
 
   function placeholder(setting, cls) {
     return h('div', { class: `placeholder placeholder--${setting} ${cls || ''}`, role: 'img', 'aria-label': t().noPhoto }, h('span', null, t().placeholders[setting]))
+  }
+
+  // If a photo can't load, show the bracket placeholder instead of a broken image.
+  function photoOr(img, setting, cls) {
+    img.addEventListener('error', () => { img.parentElement?.querySelector('.hero__credit')?.remove(); img.replaceWith(placeholder(setting, cls)) }, { once: true })
+    return img
   }
 
   function tags(p) {
@@ -137,7 +143,7 @@
     return h('div', { class: 'tags' }, out)
   }
 
-  const kicker = (p) => [t().settings[p.setting], p.size && t()[p.size]].filter(Boolean).join(' · ')
+  const kicker = (p) => [t().kinds[p.kind] || t().settings[p.setting], p.size && t()[p.size]].filter(Boolean).join(' · ')
 
   function footer() {
     const s = t()
@@ -215,7 +221,7 @@
   function card(p, d) {
     const s = t()
     return h('a', { class: 'card', href: `#/place/${p.id}` },
-      p.photo ? h('img', { class: 'card__img', src: p.photo.src, alt: '', loading: 'lazy', width: 72, height: 72 }) : placeholder(p.setting, 'card__img'),
+      p.photo ? photoOr(h('img', { class: 'card__img', src: p.photo.src, alt: '', loading: 'lazy', width: 72, height: 72 }), p.setting, 'card__img') : placeholder(p.setting, 'card__img'),
       h('div', { class: 'card__body' },
         h('div', { class: 'card__head' }, h('span', { class: 'card__name' }, p.name), h('span', { class: 'card__dist' }, s.km(d))),
         h('span', { class: 'card__kind' }, kicker(p)),
@@ -355,7 +361,7 @@
 
     return h('div', { class: 'page page--place' },
       h('div', { class: 'hero' },
-        ph ? h('img', { class: 'hero__img', src: ph.src, alt: '', width: ph.w, height: ph.h }) : placeholder(p.setting, 'hero__img'),
+        ph ? photoOr(h('img', { class: 'hero__img', src: ph.src, alt: '', width: ph.w, height: ph.h }), p.setting, 'hero__img') : placeholder(p.setting, 'hero__img'),
         h('a', { class: 'round-btn hero__back', href: '#/', 'aria-label': s.back, onclick: goBack }, svg(ICON.back)),
         ph ? h('a', { class: 'hero__credit', href: ph.page, rel: 'noopener noreferrer', target: '_blank' }, s.photoBy(ph.by, ph.licence)) : null),
       h('div', { class: 'place' },
