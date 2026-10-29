@@ -26,17 +26,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
       - name: Build the data file
+        id: build
+        continue-on-error: true
         run: node scripts/build-data.mjs
-      - name: Commit it if it changed
+      # The report is committed even when the week fails, so problems are visible in the repo.
+      - name: Commit the data and the report if they changed
+        if: always()
         run: |
           git config user.name "ellenial-maps weekly data"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/gothenburg.json
+          git add data/gothenburg.json data/report.json 2>/dev/null || true
           if git diff --staged --quiet; then
             echo "No changes this week."
           else
@@ -44,3 +48,6 @@ jobs:
             git pull --rebase origin main
             git push origin HEAD:main
           fi
+      - name: Mark the run as failed if the data step failed
+        if: steps.build.outcome == 'failure'
+        run: exit 1
