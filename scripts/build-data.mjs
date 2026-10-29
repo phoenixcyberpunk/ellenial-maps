@@ -9,7 +9,8 @@
 //   5. writes the result, but only if it looks sane (so a bad week never empties the map).
 //
 // Offline test: node scripts/build-data.mjs --fixture tests/fixture-overpass.json --no-photos
-import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
+import { gzipSync, gunzipSync } from 'node:zlib'
 
 const AREA = { name: 'Göteborg', south: 57.55, west: 11.70, north: 57.86, east: 12.20 }
 const OUT = 'data/gothenburg.json'
@@ -346,21 +347,41 @@ function dogRulesFor(name, rules) {
 
 // ---------- main ----------
 
+// Every answer is kept in data/cache/. If a request fails this week, its last good answer is
+// used instead, and the report says so. That way one overloaded server never costs the whole
+// week, and nothing half-finished is ever published: each part is either fresh or last week's.
+const CACHE = 'data/cache'
+async function cachedOverpass(name, query) {
+  const file = `${CACHE}/${name}.json.gz`
+  trail.push(`query ${name}`)
+  try {
+    const res = await overpass(query)
+    mkdirSync(CACHE, { recursive: true })
+    writeFileSync(file, gzipSync(JSON.stringify(res)))
+    report.queries[name] = res.elements.length
+    return res
+  } catch (e) {
+    if (!existsSync(file)) throw e
+    const res = JSON.parse(gunzipSync(readFileSync(file)))
+    report.queries[name] = `${res.elements.length} (last good copy, this week's request failed)`
+    report.usedCache = [...(report.usedCache || []), name]
+    trail.push(`using last good copy of ${name}`)
+    return res
+  }
+}
+
 async function main() {
   let placesRaw
   if (fixture) placesRaw = JSON.parse(readFileSync(fixture, 'utf8')).places
   else {
     placesRaw = { elements: [] }
     for (const [name, query] of Object.entries(PLACE_QUERIES)) {
-      trail.push(`query ${name}`)
-      const res = await overpass(query)
-      report.queries[name] = res.elements.length
+      const res = await cachedOverpass(name, query)
       placesRaw.elements.push(...res.elements)
       await sleep(2000)
     }
   }
-  if (!fixture) trail.push("query facilities")
-  const facilitiesRaw = fixture ? JSON.parse(readFileSync(fixture, 'utf8')).facilities : await overpass(FACILITIES_QUERY)
+  const facilitiesRaw = fixture ? JSON.parse(readFileSync(fixture, 'utf8')).facilities : await cachedOverpass('facilities', FACILITIES_QUERY)
   const dogRules = JSON.parse(readFileSync('data/dog-rules-goteborg.json', 'utf8'))
 
   // Facilities
