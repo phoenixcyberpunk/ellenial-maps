@@ -14,7 +14,14 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 const AREA = { name: 'Göteborg', south: 57.55, west: 11.70, north: 57.86, east: 12.20 }
 const OUT = 'data/gothenburg.json'
 const USER_AGENT = 'ellenial-maps-data/1.0 (https://maps.ellenial.app; https://github.com/phoenixcyberpunk/ellenial-maps)'
-const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter']
+// The main Overpass server first, then community mirrors. All are free and shared, so a busy
+// one is normal: the job waits and retries rather than publishing half an answer.
+const OVERPASS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
+]
 const COMMONS = 'https://commons.wikimedia.org/w/api.php'
 const WIKIDATA = 'https://www.wikidata.org/w/api.php'
 
@@ -33,7 +40,7 @@ const writeReport = () => { if (!fixture) writeFileSync('data/report.json', JSON
 
 // ---------- fetching ----------
 
-async function getJson(url, init = {}, tries = 3) {
+async function getJson(url, init = {}, tries = 3, wait = (i) => 5000 * (i + 1)) {
   let lastError
   for (let i = 0; i < tries; i++) {
     try {
@@ -43,7 +50,7 @@ async function getJson(url, init = {}, tries = 3) {
       return await res.json()
     } catch (e) {
       lastError = e
-      await sleep(5000 * (i + 1))
+      if (i < tries - 1) await sleep(wait(i))
     }
   }
   throw lastError
@@ -51,13 +58,14 @@ async function getJson(url, init = {}, tries = 3) {
 
 async function overpass(query) {
   let lastError
-  for (const endpoint of OVERPASS) {
+  // Two full rounds over all servers; inside each, a busy server gets 3 tries 30 s and 60 s apart.
+  for (const endpoint of [...OVERPASS, ...OVERPASS]) {
     try {
       const res = await getJson(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: 'data=' + encodeURIComponent(query),
-      })
+      }, 3, (i) => 30000 * (i + 1))
       // A "remark" means Overpass stopped early (out of time or memory): the answer is incomplete.
       if (res.remark) throw new Error(`incomplete answer: ${res.remark}`)
       trail.push(`ok ${new URL(endpoint).host}: ${res.elements.length} elements`)
