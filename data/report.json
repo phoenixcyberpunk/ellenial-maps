@@ -1,0 +1,12 @@
+{
+ "generated": "2026-10-29T19:07:16.527Z",
+ "queries": {},
+ "landmarks": {},
+ "trail": [
+  "query parks",
+  "failed overpass-api.de: 502 from overpass-api.de: # 502 Gateway Timeout This Overpass API server is currently at capacity. All query workers are busy and the request queue is full. ## What to do Retry your request using exponential backoff: wait a sh",
+  "failed overpass.private.coffee: 504 from overpass.private.coffee:  OSM3S Response The data included in this document is from www.openstreetmap.org. The data is made available under ODbL. Error : runtime error: open64: 0 Success /osm3s_osm_base Dispatcher_Client::req",
+  "stopped: 504 from overpass.private.coffee:  OSM3S Response The data included in this document is from www.openstreetmap.org. The data is made available under ODbL. Error : runtime error: open64: 0 Success /osm3s_osm_base Dispatcher_Client::req"
+ ],
+ "failed": true
+}
