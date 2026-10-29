@@ -40,7 +40,7 @@ jobs:
         run: |
           git config user.name "ellenial-maps weekly data"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/gothenburg.json data/report.json 2>/dev/null || true
+          git add data/gothenburg.json data/report.json data/cache 2>/dev/null || true
           if git diff --staged --quiet; then
             echo "No changes this week."
           else
