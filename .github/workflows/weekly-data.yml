@@ -1,0 +1,46 @@
+# Rebuilds data/gothenburg.json every Monday night, so phones never ask OpenStreetMap or
+# Wikimedia themselves. A push of the new file makes Vercel redeploy the site.
+# If a week fails or looks wrong, nothing is committed and last week's file stays live.
+name: Weekly data
+
+on:
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - scripts/build-data.mjs
+      - data/dog-rules-goteborg.json
+      - .github/workflows/weekly-data.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: weekly-data
+  cancel-in-progress: false
+
+jobs:
+  data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build the data file
+        run: node scripts/build-data.mjs
+      - name: Commit it if it changed
+        run: |
+          git config user.name "ellenial-maps weekly data"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/gothenburg.json
+          if git diff --staged --quiet; then
+            echo "No changes this week."
+          else
+            git commit -m "Weekly data: $(date -u +%F)"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi

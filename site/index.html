@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ellenial maps</title>
+<meta name="description" content="A calm, free map of places to rest and recharge in Gothenburg. No ads, no tracking.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#FAF7F2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1F1C19" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/vendor/maplibre-gl.css">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<div class="app">
+  <div id="home" hidden>
+    <div id="home-top" class="wrap"></div>
+    <div class="wrap">
+      <div id="map" class="map" role="region"></div>
+      <div id="legend" class="legend"></div>
+    </div>
+    <div id="list" class="wrap list"></div>
+    <div id="home-footer" class="wrap"></div>
+  </div>
+  <div id="page" class="wrap" hidden></div>
+  <div id="status" class="wrap status" hidden></div>
+  <p id="note" class="note" role="status" hidden></p>
+  <noscript><p class="wrap">ellenial maps needs JavaScript to show the map and the places.</p></noscript>
+</div>
+<script src="/i18n.js"></script>
+<script src="/map-style.js"></script>
+<script src="/vendor/maplibre-gl-csp.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

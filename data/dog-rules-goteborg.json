@@ -1,0 +1,50 @@
+{
+  "checked": "2026-10-29",
+  "national": {
+    "from": "03-01",
+    "to": "08-20",
+    "rule": "no-running-loose-in-nature",
+    "source": "Jaktlagen (1987:259)",
+    "sourceUrl": "https://lagen.nu/1987:259"
+  },
+  "local": [
+    {
+      "id": "beach-summer-ban",
+      "match": ["Askimsbadet", "Härlanda tjärn", "Lillebybadet", "Näsetbadet", "Hovåsbadet", "Sillviksbadet", "Fiskebäcksbadet"],
+      "kind": "banned-between",
+      "from": "05-01",
+      "to": "09-15",
+      "otherwise": "leash",
+      "source": "Göteborg & Co",
+      "sourceUrl": "https://www.goteborg.com/guider/hundvanliga-goteborg"
+    },
+    {
+      "id": "botaniska",
+      "match": ["botaniska trädgård"],
+      "kind": "allowed-between",
+      "from": "10-01",
+      "to": "02-28",
+      "otherwise": "banned",
+      "while": "leash",
+      "source": "Göteborg & Co",
+      "sourceUrl": "https://www.goteborg.com/guider/hundvanliga-goteborg"
+    },
+    {
+      "id": "slottsskogen",
+      "match": ["Slottsskogen"],
+      "kind": "always",
+      "rule": "leash",
+      "dogRun": "Majvallen",
+      "source": "Göteborg & Co",
+      "sourceUrl": "https://www.goteborg.com/guider/hundvanliga-goteborg"
+    },
+    {
+      "id": "tradgardsforeningen",
+      "match": ["Trädgårdsföreningen"],
+      "kind": "always",
+      "rule": "banned",
+      "source": "Göteborg & Co",
+      "sourceUrl": "https://www.goteborg.com/guider/hundvanliga-goteborg"
+    }
+  ]
+}
