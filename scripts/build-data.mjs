@@ -88,14 +88,14 @@ const bbox = `${AREA.south},${AREA.west},${AREA.north},${AREA.east}`
 const q = (body, out = 'out geom;') => `[out:json][timeout:240][maxsize:1073741824][bbox:${bbox}];(${body});${out}`
 const PLACE_QUERIES = {
   parks: q('wr["leisure"="park"]["name"];'),
-  parkPoints: q('node["leisure"="park"]["name"];', 'out tags;'),
+  parkPoints: q('node["leisure"="park"]["name"];', 'out;'),
   reserves: q('wr["leisure"="nature_reserve"]["name"];wr["boundary"="protected_area"]["name"];'),
   gardens: q('nwr["leisure"="garden"]["name"];'),
   water: q('nwr["leisure"="bathing_place"]["name"];nwr["leisure"="swimming_area"]["name"];nwr["natural"="beach"]["name"];'),
   squares: q('nwr["place"="square"]["name"];nwr["highway"="pedestrian"]["area"="yes"]["name"~"torg",i];'),
   points: q('nwr["tourism"="viewpoint"]["name"];nwr["amenity"="library"]["name"];', 'out tags center;'),
   // Hills with a view and named recreation grounds (Ramberget, Keillers park) aren't always mapped as parks.
-  hills: q('node["natural"~"^(peak|hill)$"]["name"];', 'out tags;'),
+  hills: q('node["natural"~"^(peak|hill)$"]["name"];', 'out;'),
   recreation: q('wr["landuse"="recreation_ground"]["name"];'),
 }
 
