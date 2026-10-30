@@ -3,8 +3,8 @@
 // forwards, so OpenFreeMap never sees who is looking at the map.
 window.mapStyle = function mapStyle(origin, dark) {
   const c = dark
-    ? { bg: '#1F1C19', water: '#26343B', park: '#25302A', wood: '#28332B', road: '#3A3530', roadMajor: '#4A433B', building: '#2A2622', label: '#C9BFB2', halo: '#1F1C19' }
-    : { bg: '#F4EFE6', water: '#CFE0EA', park: '#DCE7D2', wood: '#D3E1C8', road: '#FFFFFF', roadMajor: '#FFFDF8', building: '#E9E2D6', label: '#5E554C', halo: '#FAF7F2' }
+    ? { bg: '#1C1826', water: '#26343B', park: '#25302A', wood: '#28332B', road: '#332D40', roadMajor: '#4A4259', building: '#26212F', label: '#C2BACF', halo: '#17141F' }
+    : { bg: '#FAEEDD', water: '#CFE0EA', park: '#DCE7D2', wood: '#D3E1C8', road: '#FFFFFF', roadMajor: '#FFFBF5', building: '#EFE3D2', label: '#575166', halo: '#FEF2E2' }
   const font = ['Noto Sans Regular']
   return {
     version: 8,

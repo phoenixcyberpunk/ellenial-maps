@@ -1,0 +1,14 @@
+{"type": "Feature", "geometry": {"type": "Polygon", "coordinates": [[[11.96, 57.703], [11.97, 57.703], [11.97, 57.705], [11.96, 57.705], [11.96, 57.703]]]}, "properties": {"@type": "way", "@id": 1, "leisure": "park", "name": "Kungsparken", "wikidata": "Q1"}}
+{"type": "Feature", "geometry": {"type": "MultiPolygon", "coordinates": [[[[12.02, 57.68], [12.07, 57.68], [12.07, 57.7], [12.02, 57.7], [12.02, 57.68]]]]}, "properties": {"@type": "relation", "@id": 2, "leisure": "nature_reserve", "name": "Delsjöområdet", "website": "goteborg.se"}}
+{"type": "Feature", "geometry": {"type": "MultiPolygon", "coordinates": [[[[11.94, 57.675], [11.96, 57.675], [11.96, 57.69], [11.94, 57.69], [11.94, 57.675]]]]}, "properties": {"@type": "relation", "@id": 3, "leisure": "garden", "name": "Botaniska trädgården", "garden:type": "botanical", "website": "https://botaniska.se"}}
+{"type": "Feature", "geometry": {"type": "Point", "coordinates": [11.948, 57.718]}, "properties": {"@type": "node", "@id": 4, "natural": "peak", "name": "Ramberget"}}
+{"type": "Feature", "geometry": {"type": "Point", "coordinates": [11.905, 57.606]}, "properties": {"@type": "node", "@id": 5, "leisure": "bathing_place", "name": "Askimsbadet"}}
+{"type": "Feature", "geometry": {"type": "Point", "coordinates": [11.9668, 57.7068]}, "properties": {"@type": "node", "@id": 7, "place": "square", "name": "Gustaf Adolfs torg"}}
+{"type": "Feature", "geometry": {"type": "LineString", "coordinates": [[11.96, 57.7], [11.97, 57.7]]}, "properties": {"@type": "way", "@id": 71, "highway": "pedestrian", "name": "Kungsgatan"}}
+{"type": "Feature", "geometry": {"type": "Point", "coordinates": [11.979, 57.697]}, "properties": {"@type": "node", "@id": 8, "amenity": "library", "name": "Stadsbiblioteket"}}
+{"type": "Feature", "geometry": {"type": "MultiPolygon", "coordinates": [[[[11.93, 57.68], [11.95, 57.68], [11.95, 57.69], [11.93, 57.69], [11.93, 57.68]]]]}, "properties": {"@type": "relation", "@id": 10, "leisure": "park", "name": "Slottsskogen"}}
+{"type": "Feature", "geometry": {"type": "Point", "coordinates": [11.965, 57.704]}, "properties": {"@type": "node", "@id": 101, "amenity": "bench"}}
+{"type": "Feature", "geometry": {"type": "Point", "coordinates": [12.03, 57.69]}, "properties": {"@type": "node", "@id": 102, "amenity": "toilets"}}
+{"type": "Feature", "geometry": {"type": "Point", "coordinates": [12.031, 57.691]}, "properties": {"@type": "node", "@id": 103, "amenity": "drinking_water"}}
+{"type": "Feature", "geometry": {"type": "Point", "coordinates": [11.95, 57.68]}, "properties": {"@type": "node", "@id": 104, "amenity": "toilets", "access": "customers"}}
+{"type": "Feature", "geometry": {"type": "Polygon", "coordinates": [[[11.9399, 57.6849], [11.9401, 57.6849], [11.9401, 57.6851], [11.9399, 57.6851], [11.9399, 57.6849]]]}, "properties": {"@type": "way", "@id": 105, "leisure": "dog_park", "name": "Majvallen", "barrier": "fence"}}

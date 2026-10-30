@@ -288,12 +288,13 @@
       map.on('load', () => {
         const empty = { type: 'FeatureCollection', features: [] }
         for (const id of ['places', 'toilets', 'water', 'dogparks', 'me']) map.addSource('em-' + id, { type: 'geojson', data: empty })
-        const ink = dark ? '#1F1C19' : '#FFFFFF'
+        const ink = dark ? '#17141F' : '#FFFFFF'
+        const brand = dark ? '#B39AE8' : '#342E86'
         map.addLayer({ id: 'em-toilets', type: 'circle', source: 'em-toilets', minzoom: 12, paint: { 'circle-radius': 4.5, 'circle-color': '#4F6676', 'circle-stroke-color': ink, 'circle-stroke-width': 1.5 } })
         map.addLayer({ id: 'em-water', type: 'circle', source: 'em-water', minzoom: 12, paint: { 'circle-radius': 4.5, 'circle-color': '#2F82B0', 'circle-stroke-color': ink, 'circle-stroke-width': 1.5 } })
-        map.addLayer({ id: 'em-dogparks', type: 'circle', source: 'em-dogparks', paint: { 'circle-radius': 6, 'circle-color': '#B4530A', 'circle-stroke-color': ink, 'circle-stroke-width': 2 } })
-        map.addLayer({ id: 'em-places', type: 'circle', source: 'em-places', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 4, 14, 8], 'circle-color': '#3F6B4E', 'circle-stroke-color': ink, 'circle-stroke-width': 2 } })
-        map.addLayer({ id: 'em-me', type: 'circle', source: 'em-me', paint: { 'circle-radius': 7, 'circle-color': '#2A2420', 'circle-stroke-color': '#FAF7F2', 'circle-stroke-width': 3 } })
+        map.addLayer({ id: 'em-dogparks', type: 'circle', source: 'em-dogparks', paint: { 'circle-radius': 6, 'circle-color': dark ? '#C7B4F0' : '#8E63B3', 'circle-stroke-color': ink, 'circle-stroke-width': 2 } })
+        map.addLayer({ id: 'em-places', type: 'circle', source: 'em-places', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 4, 14, 8], 'circle-color': brand, 'circle-stroke-color': ink, 'circle-stroke-width': 2 } })
+        map.addLayer({ id: 'em-me', type: 'circle', source: 'em-me', paint: { 'circle-radius': 7, 'circle-color': dark ? '#F3EEF8' : '#1F1A2E', 'circle-stroke-color': dark ? '#17141F' : '#FEF2E2', 'circle-stroke-width': 3 } })
         map.on('click', 'em-places', (e) => { const id = e.features[0]?.properties?.id; if (id) { internalNav = true; location.hash = `#/place/${id}` } })
         map.on('mouseenter', 'em-places', () => { map.getCanvas().style.cursor = 'pointer' })
         map.on('mouseleave', 'em-places', () => { map.getCanvas().style.cursor = '' })
