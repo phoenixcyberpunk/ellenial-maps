@@ -1,32 +1,61 @@
 {
- "generated": "2026-10-29T22:07:52.893Z",
+ "generated": "2026-10-30T02:41:35.874Z",
  "queries": {
   "parks": 78,
   "parkPoints": 2,
-  "reserves": 34
+  "reserves": 34,
+  "gardens": 14,
+  "water": 36,
+  "squares": 81,
+  "points": 54,
+  "facilities": 7953
  },
- "landmarks": {},
+ "landmarks": {
+  "Slottsskogen": false,
+  "Delsjö": true,
+  "botaniska trädgård": false,
+  "Keillers park": false,
+  "Kungsparken": false,
+  "Trädgårdsföreningen": true,
+  "Ramberget": false,
+  "Stora Amundön": false
+ },
  "trail": [
   "query parks",
-  "failed overpass-api.de: 502 from overpass-api.de: # 502 Gateway Timeout This Overpass API server is currently at capacity. All query workers are busy and the request queue is full. ## What to do Retry your request using exponential backoff: wait a sh",
-  "failed overpass.kumi.systems: 502 from overpass.kumi.systems:  502 Bad Gateway 502 Bad Gateway nginx/1.26.3 ",
-  "failed maps.mail.ru: 504 from maps.mail.ru:  OSM3S Response The data included in this document is from www.openstreetmap.org. The data is made available under ODbL. Error : runtime error: open64: 0 Success /osm3s_osm_base Dispatcher_Client::req",
-  "failed overpass.private.coffee: 502 from overpass.private.coffee:  502 Bad Gateway 502 Bad Gateway nginx/1.26.3 ",
   "ok overpass-api.de: 78 elements",
   "query parkPoints",
   "ok overpass-api.de: 2 elements",
   "query reserves",
   "ok overpass-api.de: 34 elements",
   "query gardens",
+  "ok overpass-api.de: 14 elements",
+  "query water",
+  "ok overpass-api.de: 36 elements",
+  "query squares",
+  "ok overpass-api.de: 81 elements",
+  "query points",
   "failed overpass-api.de: 502 from overpass-api.de: # 502 Gateway Timeout This Overpass API server is currently at capacity. All query workers are busy and the request queue is full. ## What to do Retry your request using exponential backoff: wait a sh",
   "failed overpass.kumi.systems: 504 from overpass.kumi.systems:  OSM3S Response The data included in this document is from www.openstreetmap.org. The data is made available under ODbL. Error : runtime error: open64: 0 Success /osm3s_osm_base Dispatcher_Client::req",
   "failed maps.mail.ru: 504 from maps.mail.ru:  504 Gateway Time-out 504 Gateway Time-out nginx ",
-  "failed overpass.private.coffee: fetch failed",
-  "failed overpass-api.de: 502 from overpass-api.de: # 502 Gateway Timeout This Overpass API server is currently at capacity. All query workers are busy and the request queue is full. ## What to do Retry your request using exponential backoff: wait a sh",
-  "failed overpass.kumi.systems: 504 from overpass.kumi.systems:  OSM3S Response The data included in this document is from www.openstreetmap.org. The data is made available under ODbL. Error : runtime error: open64: 0 Success /osm3s_osm_base Dispatcher_Client::req",
-  "failed maps.mail.ru: 504 from maps.mail.ru:  OSM3S Response The data included in this document is from www.openstreetmap.org. The data is made available under ODbL. Error : runtime error: open64: 0 Success /osm3s_osm_base Dispatcher_Client::req",
-  "failed overpass.private.coffee: 502 from overpass.private.coffee:  502 Bad Gateway 502 Bad Gateway nginx/1.26.3 ",
-  "stopped: 502 from overpass.private.coffee:  502 Bad Gateway 502 Bad Gateway nginx/1.26.3 "
+  "failed overpass.private.coffee: 504 from overpass.private.coffee:  OSM3S Response The data included in this document is from www.openstreetmap.org. The data is made available under ODbL. Error : runtime error: open64: 0 Success /osm3s_osm_base Dispatcher_Client::req",
+  "ok overpass-api.de: 54 elements",
+  "query facilities",
+  "ok overpass-api.de: 7953 elements"
  ],
- "failed": true
+ "counts": {
+  "places": 206,
+  "bySetting": {
+   "nature": 10,
+   "urban": 56,
+   "gardens": 7,
+   "squares": 55,
+   "water": 26,
+   "view": 12,
+   "libraries": 40
+  },
+  "withPhoto": 43,
+  "toilets": 159,
+  "water": 47,
+  "dogParks": 43
+ }
 }
