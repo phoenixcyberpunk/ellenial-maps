@@ -1,22 +1,23 @@
-@font-face { font-family: 'Fraunces'; font-weight: 400; font-display: swap; src: url('/fonts/fraunces-latin-400-normal.woff2') format('woff2'); }
-@font-face { font-family: 'Fraunces'; font-weight: 600; font-display: swap; src: url('/fonts/fraunces-latin-600-normal.woff2') format('woff2'); }
-@font-face { font-family: 'Instrument Sans'; font-weight: 400; font-display: swap; src: url('/fonts/instrument-sans-latin-400-normal.woff2') format('woff2'); }
-@font-face { font-family: 'Instrument Sans'; font-weight: 500; font-display: swap; src: url('/fonts/instrument-sans-latin-500-normal.woff2') format('woff2'); }
-@font-face { font-family: 'Instrument Sans'; font-weight: 600; font-display: swap; src: url('/fonts/instrument-sans-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Fraunces'; font-weight: 500; font-display: swap; src: url('/fonts/fraunces-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'DM Sans'; font-weight: 400; font-display: swap; src: url('/fonts/dm-sans-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'DM Sans'; font-weight: 500; font-display: swap; src: url('/fonts/dm-sans-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'DM Sans'; font-weight: 600; font-display: swap; src: url('/fonts/dm-sans-latin-600-normal.woff2') format('woff2'); }
 
+/* The official Ellenial colours, the same set as ellenial.app and Gillefeeling. */
 :root {
-  --bg: #FAF7F2; --surface: #FFFFFF; --soft: #F1ECE4; --line: #E8E1D6; --line-strong: #D8CFC1;
-  --ink: #2A2420; --muted: #5E554C; --brand: #56705A; --accent: #B4530A; --accent-ink: #8A3E07;
-  --green-bg: #E3EDE4; --green-ink: #2F5A3D; --blue-bg: #EAF0F4; --blue-ink: #2E4757; --warn-bg: #F9E4D2; --warn-ink: #8A3E07;
-  --place: #3F6B4E; --toilet: #4F6676; --water: #2F82B0;
-  --serif: 'Fraunces', Georgia, serif; --sans: 'Instrument Sans', system-ui, -apple-system, sans-serif;
+  --bg: #FEF2E2; --surface: #FFFBF5; --soft: #F1EAF8; --line: #EDE1D1; --line-strong: #D6C8B6;
+  --ink: #1F1A2E; --muted: #575166; --brand: #342E86; --accent: #342E86; --on-accent: #FFFFFF; --accent-ink: #342E86;
+  --green-bg: #D5E3D6; --green-ink: #2F5A3D; --blue-bg: #D3E2EC; --blue-ink: #2E4757; --warn-bg: #F5E3E0; --warn-ink: #A2433B;
+  --place: #342E86; --toilet: #4F6676; --water: #2F82B0; --dog: #8E63B3; --season: #B39AE8;
+  --serif: 'Fraunces', Georgia, serif; --sans: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #1F1C19; --surface: #29251F; --soft: #332E27; --line: #3A342C; --line-strong: #4A433A;
-    --ink: #F3EDE3; --muted: #BDB3A6; --brand: #A9C2AC; --accent: #F0A15E; --accent-ink: #F0A15E;
-    --green-bg: #2B3A2E; --green-ink: #BFD8C2; --blue-bg: #26303D; --blue-ink: #C9D4E0; --warn-bg: #45301F; --warn-ink: #F6C79A;
+    --bg: #17141F; --surface: #221E2C; --soft: #2D2640; --line: #332D40; --line-strong: #4A4259;
+    --ink: #F3EEF8; --muted: #C2BACF; --brand: #B39AE8; --accent: #B39AE8; --on-accent: #1A1430; --accent-ink: #B39AE8;
+    --green-bg: #31423A; --green-ink: #BFD8C2; --blue-bg: #2E3E48; --blue-ink: #C9D4E0; --warn-bg: #3A2623; --warn-ink: #E59A91;
+    --place: #B39AE8; --dog: #C7B4F0; --season: #8E63B3;
   }
 }
 
@@ -32,9 +33,9 @@ button { font: inherit; color: inherit; }
 
 /* top of home */
 .brandbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 14px; }
-.brand { margin: 0; font: 600 22px/1.2 var(--serif); letter-spacing: -0.3px; color: var(--brand); }
-.heading { margin: 14px 0 12px; font: 400 32px/1.1 var(--serif); letter-spacing: -0.8px; }
-.subheading { margin: 24px 0 6px; font: 600 18px/1.3 var(--serif); }
+.brand { margin: 0; font: 500 22px/1.2 var(--serif); letter-spacing: -0.3px; color: var(--brand); }
+.heading { margin: 14px 0 12px; font: 500 32px/1.1 var(--serif); letter-spacing: -0.8px; }
+.subheading { margin: 24px 0 6px; font: 500 18px/1.3 var(--serif); }
 .kicker { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--accent-ink); }
 .label { margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--accent-ink); }
 .muted { color: var(--muted); }
@@ -43,10 +44,10 @@ button { font: inherit; color: inherit; }
 /* chips and buttons */
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1.5px solid var(--line-strong); background: transparent; font-size: 15px; font-weight: 600; cursor: pointer; text-decoration: none; }
-.chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .chip--more { background: var(--soft); border-color: var(--soft); }
-.badge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; }
-.pill-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 0 18px; border-radius: 999px; border: none; background: var(--ink); color: var(--bg); text-decoration: none; font-size: 15px; font-weight: 600; cursor: pointer; }
+.badge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 12px; display: inline-flex; align-items: center; justify-content: center; }
+.pill-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 0 18px; border-radius: 999px; border: none; background: var(--accent); color: var(--on-accent); text-decoration: none; font-size: 15px; font-weight: 600; cursor: pointer; }
 .pill-btn--soft { background: var(--soft); color: var(--ink); }
 .pill-btn--wide { width: 100%; min-height: 52px; font-size: 16px; }
 .round-btn { width: 44px; height: 44px; flex: none; border-radius: 50%; background: var(--soft); display: inline-flex; align-items: center; justify-content: center; color: var(--ink); }
@@ -67,7 +68,7 @@ button { font: inherit; color: inherit; }
 .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 10px 0 4px; font-size: 13px; font-weight: 600; color: var(--muted); }
 .legend__item { display: inline-flex; align-items: center; gap: 6px; }
 .dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--line-strong); }
-.dot--place { background: var(--place); } .dot--toilet { background: var(--toilet); } .dot--water { background: var(--water); } .dot--dog { background: #B4530A; }
+.dot--place { background: var(--place); } .dot--toilet { background: var(--toilet); } .dot--water { background: var(--water); } .dot--dog { background: var(--dog); }
 .near-me { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; font-weight: 600; cursor: pointer; }
 .near-me:disabled { opacity: .7; cursor: progress; }
 .maplibregl-ctrl-attrib { font: 11px var(--sans); }
@@ -101,7 +102,7 @@ button { font: inherit; color: inherit; }
 .page { padding-bottom: 24px; }
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 16px; flex-direction: row-reverse; }
 .page--dog .topbar, .page--about .topbar { flex-direction: row; }
-.topbar__title { margin: 0; font: 400 30px/1.1 var(--serif); letter-spacing: -0.6px; }
+.topbar__title { margin: 0; font: 500 30px/1.1 var(--serif); letter-spacing: -0.6px; }
 .group { margin-top: 24px; }
 .seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 14px; background: var(--soft); }
 .seg__btn { min-height: 42px; border: none; border-radius: 10px; background: transparent; font-weight: 600; font-size: 14px; cursor: pointer; }
@@ -111,10 +112,10 @@ button { font: inherit; color: inherit; }
 .hero { position: relative; margin: 0 -16px; height: 260px; background: var(--soft); }
 .hero__img { width: 100%; height: 100%; object-fit: cover; display: block; font-size: 15px; }
 .hero__back { position: absolute; left: 16px; top: 16px; background: var(--bg); }
-.hero__credit { position: absolute; left: 0; right: 0; bottom: 0; padding: 8px 16px; background: rgba(42,36,32,.75); color: #FAF7F2; font-size: 11px; line-height: 1.35; text-decoration: none; }
+.hero__credit { position: absolute; left: 0; right: 0; bottom: 0; padding: 8px 16px; background: rgba(31,26,46,.75); color: #FEF2E2; font-size: 11px; line-height: 1.35; text-decoration: none; }
 @media (min-width: 672px) { .hero { margin: 16px 0 0; border-radius: 20px; overflow: hidden; } }
 .place { display: flex; flex-direction: column; gap: 12px; padding-top: 20px; }
-.place__name { margin: -6px 0 0; font: 400 34px/1.1 var(--serif); letter-spacing: -0.6px; }
+.place__name { margin: -6px 0 0; font: 500 34px/1.1 var(--serif); letter-spacing: -0.6px; }
 .place .muted { margin: -4px 0 0; }
 .links { display: flex; flex-wrap: wrap; gap: 8px; }
 .place__foot { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
@@ -133,7 +134,7 @@ button { font: inherit; color: inherit; }
 .months__l { font-size: 10px; font-weight: 600; color: var(--muted); }
 .months__m--now .months__l { color: var(--accent-ink); }
 .season { position: relative; height: 10px; border-radius: 999px; background: var(--soft); margin: 4px 0; }
-.season__band { position: absolute; top: 0; bottom: 0; border-radius: 999px; background: #E3B98F; }
+.season__band { position: absolute; top: 0; bottom: 0; border-radius: 999px; background: var(--season); }
 .season__today { position: absolute; top: -4px; width: 18px; height: 18px; margin-left: -9px; border-radius: 50%; background: var(--ink); border: 3px solid var(--surface); }
 .season__axis { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--muted); }
 .rows { list-style: none; margin: 0; padding: 0; }
@@ -146,7 +147,7 @@ button { font: inherit; color: inherit; }
 /* footer, status */
 .footer { margin-top: 32px; padding: 18px 0 28px; border-top: 1px solid var(--line); text-align: center; }
 .footer p { margin: 4px 0; }
-.footer__slogan { font: 400 16px var(--serif); }
+.footer__slogan { font: 500 16px var(--serif); }
 .footer__line, .footer__links { font-size: 12px; color: var(--muted); }
 .langs { display: inline-flex; gap: 2px; align-items: center; }
 .lang { border: none; background: none; padding: 6px 4px; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; }

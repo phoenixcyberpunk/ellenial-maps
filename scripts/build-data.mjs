@@ -1,28 +1,23 @@
 // Builds data/gothenburg.json: the one file every phone reads.
 //
 // Runs weekly on GitHub's servers (see .github/workflows/weekly-data.yml), so phones never
-// talk to OpenStreetMap or Wikimedia themselves. It:
-//   1. asks OpenStreetMap (Overpass) for calm, free places and nearby facilities,
+// talk to OpenStreetMap or Wikimedia themselves. Before this script runs, the workflow
+// downloads Sweden's OpenStreetMap file from Geofabrik, cuts out the Gothenburg area and the
+// tags we use with osmium, and exports them as GeoJSON (one feature per line). This script:
+//   1. reads those features (places, toilets, water taps, benches, shelters, dog runs),
 //   2. works out each place's setting, size and what's close by,
 //   3. finds an openly licensed photo on Wikimedia Commons, with its credit,
 //   4. adds Gothenburg's dog rules from data/dog-rules-goteborg.json,
 //   5. writes the result, but only if it looks sane (so a bad week never empties the map).
 //
-// Offline test: node scripts/build-data.mjs --fixture tests/fixture-overpass.json --no-photos
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
-import { gzipSync, gunzipSync } from 'node:zlib'
+// Weekly:       node scripts/build-data.mjs --input work/gothenburg.geojsonseq
+// Offline test: node scripts/build-data.mjs --input tests/fixture.geojsonseq --test --no-photos
+import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 
+// Keep in sync with AREA_BBOX in .github/workflows/weekly-data.yml.
 const AREA = { name: 'Göteborg', south: 57.55, west: 11.70, north: 57.86, east: 12.20 }
 const OUT = 'data/gothenburg.json'
-const USER_AGENT = 'ellenial-maps-data/1.0 (https://maps.ellenial.app; https://github.com/phoenixcyberpunk/ellenial-maps)'
-// The main Overpass server first, then community mirrors. All are free and shared, so a busy
-// one is normal: the job waits and retries rather than publishing half an answer.
-const OVERPASS = [
-  'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter',
-  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
-  'https://overpass.private.coffee/api/interpreter',
-]
+const USER_AGENT = 'ellenial-maps-data/2.0 (https://maps.ellenial.app; https://github.com/phoenixcyberpunk/ellenial-maps)'
 const COMMONS = 'https://commons.wikimedia.org/w/api.php'
 const WIKIDATA = 'https://www.wikidata.org/w/api.php'
 
@@ -31,86 +26,52 @@ const NATURE_PARK_HA = 30 // a park this big feels like nature rather than a cit
 const NEAR_M = 200 // how far around a place a toilet, water tap or shelter still counts as "nearby"
 
 const args = process.argv.slice(2)
-const fixture = args.includes('--fixture') ? args[args.indexOf('--fixture') + 1] : null
+const input = args.includes('--input') ? args[args.indexOf('--input') + 1] : null
+const test = args.includes('--test')
 const withPhotos = !args.includes('--no-photos')
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-// What happened on the way, written to data/report.json so problems are visible in the repo.
+// What happened, written to data/report.json so problems are visible in the repo.
 const trail = []
-const report = { generated: new Date().toISOString(), queries: {}, landmarks: {}, trail }
-const writeReport = () => { if (!fixture) writeFileSync('data/report.json', JSON.stringify(report, null, 1)) }
+const report = { generated: new Date().toISOString(), source: 'Geofabrik Sweden extract (OpenStreetMap)', features: 0, landmarks: {}, trail }
+const writeReport = () => { if (!test) writeFileSync('data/report.json', JSON.stringify(report, null, 1)) }
 
-// ---------- fetching ----------
+// Well-known places that must be on the map. If more than two are missing, the week is broken.
+const LANDMARKS = ['Slottsskogen', 'Delsjö', 'botaniska trädgård', 'Keillers park', 'Kungsparken', 'Trädgårdsföreningen', 'Ramberget', 'Stora Amundö']
 
-async function getJson(url, init = {}, tries = 3, wait = (i) => 5000 * (i + 1)) {
+// ---------- fetching (photos only) ----------
+
+async function getJson(url, tries = 3) {
   let lastError
   for (let i = 0; i < tries; i++) {
     try {
-      const res = await fetch(url, { ...init, headers: { 'User-Agent': USER_AGENT, Accept: 'application/json', ...init.headers } })
-      if (res.status === 429 || res.status >= 500) throw new Error(`${res.status} from ${new URL(url).host}: ${(await res.text()).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 200)}`)
-      if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0, 200)}`)
+      const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' } })
+      if (!res.ok) throw new Error(`${res.status} from ${new URL(url).host}`)
       return await res.json()
     } catch (e) {
       lastError = e
-      if (i < tries - 1) await sleep(wait(i))
+      if (i < tries - 1) await sleep(5000 * (i + 1))
     }
   }
   throw lastError
 }
 
-async function overpass(query) {
-  let lastError
-  // Two full rounds over all servers; inside each, a busy server gets 3 tries 30 s and 60 s apart.
-  for (const endpoint of [...OVERPASS, ...OVERPASS]) {
-    try {
-      const res = await getJson(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'data=' + encodeURIComponent(query),
-      }, 3, (i) => 30000 * (i + 1))
-      // A "remark" means Overpass stopped early (out of time or memory): the answer is incomplete.
-      if (res.remark) throw new Error(`incomplete answer: ${res.remark}`)
-      trail.push(`ok ${new URL(endpoint).host}: ${res.elements.length} elements`)
-      return res
-    } catch (e) {
-      lastError = e
-      trail.push(`failed ${new URL(endpoint).host}: ${String(e.message).slice(0, 300)}`)
-      console.warn(`Overpass ${endpoint} failed: ${e.message}`)
-    }
+// ---------- reading osmium's GeoJSON ----------
+
+// osmium export -f geojsonseq writes one feature per line, each starting with a record
+// separator (0x1E). Properties hold the tags plus "@type" and "@id" (from -a type,id).
+function readFeatures(path) {
+  const out = []
+  for (const raw of readFileSync(path, 'utf8').split('\n')) {
+    const line = raw.replace(/^\x1e/, '').trim()
+    if (!line) continue
+    const f = JSON.parse(line)
+    const props = f.properties || {}
+    const tags = {}
+    for (const [k, v] of Object.entries(props)) if (!k.startsWith('@')) tags[k] = String(v)
+    out.push({ type: props['@type'] || 'way', id: props['@id'] ?? 0, tags, geometry: f.geometry })
   }
-  throw lastError
+  return out
 }
-
-const bbox = `${AREA.south},${AREA.west},${AREA.north},${AREA.east}`
-
-// Several small queries instead of one big one: Overpass quietly cuts a heavy answer short,
-// and the big park and reserve outlines are the heaviest part.
-// 'out geom' (not 'out tags geom'): relations need their member ways, or big parks lose their outline.
-const q = (body, out = 'out geom;') => `[out:json][timeout:240][maxsize:1073741824][bbox:${bbox}];(${body});${out}`
-const PLACE_QUERIES = {
-  parks: q('wr["leisure"="park"]["name"];'),
-  parkPoints: q('node["leisure"="park"]["name"];', 'out;'),
-  reserves: q('wr["leisure"="nature_reserve"]["name"];wr["boundary"="protected_area"]["name"];'),
-  gardens: q('nwr["leisure"="garden"]["name"];'),
-  water: q('nwr["leisure"="bathing_place"]["name"];nwr["leisure"="swimming_area"]["name"];nwr["natural"="beach"]["name"];'),
-  squares: q('nwr["place"="square"]["name"];nwr["highway"="pedestrian"]["area"="yes"]["name"~"torg",i];'),
-  points: q('nwr["tourism"="viewpoint"]["name"];nwr["amenity"="library"]["name"];', 'out tags center;'),
-  // Hills with a view and named recreation grounds (Ramberget, Keillers park) aren't always mapped as parks.
-  hills: q('node["natural"~"^(peak|hill)$"]["name"];', 'out;'),
-  recreation: q('wr["landuse"="recreation_ground"]["name"];'),
-}
-
-const FACILITIES_QUERY = `[out:json][timeout:180][bbox:${bbox}];
-(
-  nwr["amenity"="toilets"]["access"!~"private|no|customers"];
-  nwr["amenity"="drinking_water"]["access"!~"private|no"];
-  nwr["amenity"="shelter"]["access"!~"private|no"];
-  node["amenity"="bench"];
-  nwr["leisure"="dog_park"];
-);
-out tags center qt;`
-
-// Well-known places that must be on the map. If several are missing, the week is broken.
-const LANDMARKS = ['Slottsskogen', 'Delsjö', 'botaniska trädgård', 'Keillers park', 'Kungsparken', 'Trädgårdsföreningen', 'Ramberget', 'Stora Amundön']
 
 // ---------- geometry ----------
 
@@ -127,65 +88,31 @@ function ringArea(points, lat0) {
   return Math.abs(sum) / 2
 }
 
-// Joins a relation's outer (or inner) member ways into closed rings.
-function rings(ways) {
-  const open = ways.map((w) => [...w]).filter((w) => w.length > 1)
-  const done = []
-  const same = (a, b) => a.lat === b.lat && a.lon === b.lon
-  while (open.length) {
-    let ring = open.shift()
-    let grew = true
-    while (!same(ring[0], ring[ring.length - 1]) && grew) {
-      grew = false
-      for (let i = 0; i < open.length; i++) {
-        const w = open[i]
-        const end = ring[ring.length - 1]
-        if (same(end, w[0])) ring = ring.concat(w.slice(1))
-        else if (same(end, w[w.length - 1])) ring = ring.concat([...w].reverse().slice(1))
-        else continue
-        open.splice(i, 1)
-        grew = true
-        break
-      }
-    }
-    if (same(ring[0], ring[ring.length - 1]) && ring.length > 3) done.push(ring)
-  }
-  return done
-}
+const ll = (c) => ({ lat: c[1], lon: c[0] })
+const boxOf = (pts) => [Math.min(...pts.map((p) => p.lat)), Math.min(...pts.map((p) => p.lon)), Math.max(...pts.map((p) => p.lat)), Math.max(...pts.map((p) => p.lon))]
 
-function shape(el) {
-  if (el.center && !el.geometry && !el.members) return { lat: el.center.lat, lon: el.center.lon, m2: null, box: [el.center.lat, el.center.lon, el.center.lat, el.center.lon] }
-  if (el.type === 'node') return { lat: el.lat, lon: el.lon, m2: null, box: [el.lat, el.lon, el.lat, el.lon] }
-  let outer = []
-  let inner = []
-  if (el.type === 'way' && el.geometry) {
-    const g = el.geometry
-    const closed = g.length > 3 && g[0].lat === g[g.length - 1].lat && g[0].lon === g[g.length - 1].lon
-    outer = closed ? [g] : []
-    if (!closed) return lineShape(g)
-  } else if (el.type === 'relation' && el.members) {
-    const geo = (role) => el.members.filter((m) => m.type === 'way' && m.geometry && (m.role || 'outer') === role).map((m) => m.geometry)
-    outer = rings(geo('outer'))
-    inner = rings(geo('inner'))
-    if (!outer.length) {
-      const all = el.members.flatMap((m) => m.geometry || (m.lat ? [m] : []))
-      return all.length ? lineShape(all) : null
-    }
-  } else return null
-  const pts = outer.flat()
-  const box = [Math.min(...pts.map((p) => p.lat)), Math.min(...pts.map((p) => p.lon)), Math.max(...pts.map((p) => p.lat)), Math.max(...pts.map((p) => p.lon))]
+// Position, area and outline of a GeoJSON geometry from osmium.
+function shape(g) {
+  if (!g) return null
+  if (g.type === 'Point') { const p = ll(g.coordinates); return { ...p, m2: null, box: [p.lat, p.lon, p.lat, p.lon] } }
+  if (g.type === 'LineString') return lineShape(g.coordinates.map(ll))
+  if (g.type === 'MultiLineString') return lineShape(g.coordinates.flat().map(ll))
+  const polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : null
+  if (!polys || !polys.length) return null
+  const outers = polys.map((poly) => poly[0].map(ll))
+  const box = boxOf(outers.flat())
   const lat0 = (box[0] + box[2]) / 2
-  const m2 = outer.reduce((s, r) => s + ringArea(r, lat0), 0) - inner.reduce((s, r) => s + ringArea(r, lat0), 0)
-  // Marker: the outer-ring vertex average, nudged to the bbox centre if that falls inside.
-  const biggest = outer.reduce((a, b) => (ringArea(b, lat0) > ringArea(a, lat0) ? b : a))
-  let lat = biggest.reduce((s, p) => s + p.lat, 0) / biggest.length
-  let lon = biggest.reduce((s, p) => s + p.lon, 0) / biggest.length
+  const m2 = polys.reduce((sum, poly) => sum + ringArea(poly[0].map(ll), lat0) - poly.slice(1).reduce((h, r) => h + ringArea(r.map(ll), lat0), 0), 0)
+  // Marker: the biggest outer ring's vertex average, or its first point if that falls outside.
+  const biggest = outers.reduce((x, y) => (ringArea(y, lat0) > ringArea(x, lat0) ? y : x))
+  let lat = biggest.reduce((sum, p) => sum + p.lat, 0) / biggest.length
+  let lon = biggest.reduce((sum, p) => sum + p.lon, 0) / biggest.length
   if (!inside({ lat, lon }, biggest)) [lat, lon] = [biggest[0].lat, biggest[0].lon]
   return { lat, lon, m2: Math.max(m2, 0), box, ring: biggest }
 }
 
 function lineShape(points) {
-  const box = [Math.min(...points.map((p) => p.lat)), Math.min(...points.map((p) => p.lon)), Math.max(...points.map((p) => p.lat)), Math.max(...points.map((p) => p.lon))]
+  const box = boxOf(points)
   return { lat: (box[0] + box[2]) / 2, lon: (box[1] + box[3]) / 2, m2: null, box }
 }
 
@@ -240,6 +167,7 @@ function keep(t, kind) {
   if (isPrivate(t)) return false
   if (GENERIC.test(t.name.trim())) return false
   if (kind === 'square' && /kryss|korsning|rondell|cirkulation|punkten$/i.test(t.name)) return false
+  if (t.highway === 'pedestrian' && !(t.area === 'yes' && /torg/i.test(t.name))) return false
   if (kind === 'garden' && /residential|private|community|allotment/.test(t['garden:type'] || '')) return false
   if (kind === 'reserve') {
     // Only real protected nature, not e.g. water-protection zones.
@@ -353,61 +281,26 @@ function dogRulesFor(name, rules) {
 
 // ---------- main ----------
 
-// Every answer is kept in data/cache/. If a request fails this week, its last good answer is
-// used instead, and the report says so. That way one overloaded server never costs the whole
-// week, and nothing half-finished is ever published: each part is either fresh or last week's.
-const CACHE = 'data/cache'
-// Extras that must never block a week: without them the map just has a few fewer places.
-const OPTIONAL = new Set(['hills', 'recreation'])
-async function cachedOverpass(name, query) {
-  const file = `${CACHE}/${name}.json.gz`
-  trail.push(`query ${name}`)
-  try {
-    const res = await overpass(query)
-    mkdirSync(CACHE, { recursive: true })
-    writeFileSync(file, gzipSync(JSON.stringify(res)))
-    report.queries[name] = res.elements.length
-    return res
-  } catch (e) {
-    if (!existsSync(file) && OPTIONAL.has(name)) {
-      report.queries[name] = 'skipped this week (request failed, no saved copy yet)'
-      trail.push(`skipped optional ${name}`)
-      return { elements: [] }
-    }
-    if (!existsSync(file)) throw e
-    const res = JSON.parse(gunzipSync(readFileSync(file)))
-    report.queries[name] = `${res.elements.length} (last good copy, this week's request failed)`
-    report.usedCache = [...(report.usedCache || []), name]
-    trail.push(`using last good copy of ${name}`)
-    return res
-  }
-}
-
 async function main() {
-  let placesRaw
-  if (fixture) placesRaw = JSON.parse(readFileSync(fixture, 'utf8')).places
-  else {
-    placesRaw = { elements: [] }
-    for (const [name, query] of Object.entries(PLACE_QUERIES)) {
-      const res = await cachedOverpass(name, query)
-      placesRaw.elements.push(...res.elements)
-      await sleep(2000)
-    }
-  }
-  const facilitiesRaw = fixture ? JSON.parse(readFileSync(fixture, 'utf8')).facilities : await cachedOverpass('facilities', FACILITIES_QUERY)
+  if (!input || !existsSync(input)) throw new Error(`No input file (--input). Got: ${input}`)
+  const features = readFeatures(input)
+  report.features = features.length
+  trail.push(`read ${features.length} features from ${input}`)
   const dogRules = JSON.parse(readFileSync('data/dog-rules-goteborg.json', 'utf8'))
 
   // Facilities
-  const pt = (e) => (e.lat != null ? { lat: e.lat, lon: e.lon } : e.center ? { lat: e.center.lat, lon: e.center.lon } : null)
+  const pt = (e) => { const sh = shape(e.geometry); return sh ? { lat: sh.lat, lon: sh.lon } : null }
+  const closed = (t) => /^(private|no|customers)$/.test(t.access || '')
   const toilets = []
   const water = []
   const shelters = []
   const benches = []
   const dogParks = []
-  for (const e of facilitiesRaw.elements) {
+  for (const e of features) {
+    const t = e.tags
+    if (!(t.amenity === 'toilets' || t.amenity === 'drinking_water' || t.amenity === 'shelter' || t.amenity === 'bench' || t.leisure === 'dog_park') || closed(t)) continue
     const p = pt(e)
     if (!p) continue
-    const t = e.tags || {}
     if (t.amenity === 'toilets') toilets.push({ ...p, fee: t.fee === 'yes' })
     else if (t.amenity === 'drinking_water') water.push(p)
     else if (t.amenity === 'shelter') shelters.push(p)
@@ -417,11 +310,11 @@ async function main() {
 
   // Places
   let places = []
-  for (const e of placesRaw.elements) {
-    const t = e.tags || {}
+  for (const e of features) {
+    const t = e.tags
     const kind = kindOf(t)
     if (!kind || !t.name || !keep(t, kind)) continue
-    const s = shape(e)
+    const s = shape(e.geometry)
     if (!s) continue
     const ha = s.m2 != null ? s.m2 / 10000 : null
     // A point-only park (no outline mapped) is still a park; give it no size.
@@ -442,7 +335,7 @@ async function main() {
   }
   places = kept
 
-  if (withPhotos && !fixture) await addPhotos(places)
+  if (withPhotos && !test) await addPhotos(places)
 
   const round = (x) => Math.round(x * 1e5) / 1e5
   const out = places.map((p) => {
@@ -494,20 +387,20 @@ async function main() {
   report.counts = data.counts
   const missing = Object.entries(report.landmarks).filter(([, ok]) => !ok).map(([l]) => l)
   writeReport()
-  if (!fixture && missing.length > 2) {
+  if (!test && missing.length > 2) {
     console.error(`Landmarks missing: ${missing.join(', ')}. Not replacing the data file.`)
     process.exit(1)
   }
 
   // Sanity check: never replace a good file with a broken week.
-  if (!fixture && existsSync(OUT)) {
+  if (!test && existsSync(OUT)) {
     const old = JSON.parse(readFileSync(OUT, 'utf8'))
     if (old.counts?.places > 50 && out.length < old.counts.places * 0.6) {
       console.error(`Only ${out.length} places this week (was ${old.counts.places}). Keeping last week's file.`)
       process.exit(1)
     }
   }
-  if (out.length < (fixture ? 1 : 50)) {
+  if (out.length < (test ? 1 : 50)) {
     console.error(`Only ${out.length} places found. Not writing.`)
     process.exit(1)
   }
@@ -515,7 +408,7 @@ async function main() {
   const unmatched = dogRules.local.filter((r) => !out.some((p) => p.dogRule === r.id)).map((r) => r.id)
   if (unmatched.length) console.warn(`Dog rules with no matching place on the map: ${unmatched.join(', ')}`)
 
-  writeFileSync(fixture ? 'data/sample.json' : OUT, JSON.stringify(data))
+  writeFileSync(test ? 'data/sample.json' : OUT, JSON.stringify(data))
   console.log(JSON.stringify(data.counts, null, 1))
 }
 
