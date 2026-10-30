@@ -84,7 +84,8 @@ const bbox = `${AREA.south},${AREA.west},${AREA.north},${AREA.east}`
 
 // Several small queries instead of one big one: Overpass quietly cuts a heavy answer short,
 // and the big park and reserve outlines are the heaviest part.
-const q = (body, out = 'out tags geom;') => `[out:json][timeout:240][maxsize:1073741824][bbox:${bbox}];(${body});${out}`
+// 'out geom' (not 'out tags geom'): relations need their member ways, or big parks lose their outline.
+const q = (body, out = 'out geom;') => `[out:json][timeout:240][maxsize:1073741824][bbox:${bbox}];(${body});${out}`
 const PLACE_QUERIES = {
   parks: q('wr["leisure"="park"]["name"];'),
   parkPoints: q('node["leisure"="park"]["name"];', 'out tags;'),
@@ -93,6 +94,9 @@ const PLACE_QUERIES = {
   water: q('nwr["leisure"="bathing_place"]["name"];nwr["leisure"="swimming_area"]["name"];nwr["natural"="beach"]["name"];'),
   squares: q('nwr["place"="square"]["name"];nwr["highway"="pedestrian"]["area"="yes"]["name"~"torg",i];'),
   points: q('nwr["tourism"="viewpoint"]["name"];nwr["amenity"="library"]["name"];', 'out tags center;'),
+  // Hills with a view and named recreation grounds (Ramberget, Keillers park) aren't always mapped as parks.
+  hills: q('node["natural"~"^(peak|hill)$"]["name"];', 'out tags;'),
+  recreation: q('wr["landuse"="recreation_ground"]["name"];'),
 }
 
 const FACILITIES_QUERY = `[out:json][timeout:180][bbox:${bbox}];
@@ -217,6 +221,8 @@ function near(p, place, d) {
 const isPrivate = (t) => /^(private|no|customers|permit)$/.test(t.access || '')
 
 function kindOf(t) {
+  if (t.natural === 'peak' || t.natural === 'hill') return 'viewpoint'
+  if (t.landuse === 'recreation_ground') return 'park'
   if (t.amenity === 'library') return 'library'
   if (t.place === 'square' || (t.highway === 'pedestrian' && t.area === 'yes')) return 'square'
   if (t.tourism === 'viewpoint') return 'viewpoint'
