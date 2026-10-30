@@ -357,6 +357,8 @@ function dogRulesFor(name, rules) {
 // used instead, and the report says so. That way one overloaded server never costs the whole
 // week, and nothing half-finished is ever published: each part is either fresh or last week's.
 const CACHE = 'data/cache'
+// Extras that must never block a week: without them the map just has a few fewer places.
+const OPTIONAL = new Set(['hills', 'recreation'])
 async function cachedOverpass(name, query) {
   const file = `${CACHE}/${name}.json.gz`
   trail.push(`query ${name}`)
@@ -367,6 +369,11 @@ async function cachedOverpass(name, query) {
     report.queries[name] = res.elements.length
     return res
   } catch (e) {
+    if (!existsSync(file) && OPTIONAL.has(name)) {
+      report.queries[name] = 'skipped this week (request failed, no saved copy yet)'
+      trail.push(`skipped optional ${name}`)
+      return { elements: [] }
+    }
     if (!existsSync(file)) throw e
     const res = JSON.parse(gunzipSync(readFileSync(file)))
     report.queries[name] = `${res.elements.length} (last good copy, this week's request failed)`
