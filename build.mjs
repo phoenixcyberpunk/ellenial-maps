@@ -8,7 +8,7 @@ import { cpSync, mkdirSync, rmSync, copyFileSync, existsSync } from 'node:fs'
 
 const FONTS = [
   ['fraunces', [500]],
-  ['dm-sans', [400, 500, 600]],
+  ['instrument-sans', [400, 500, 600]],
 ]
 
 rmSync('dist', { recursive: true, force: true })

@@ -58,7 +58,7 @@ npm run build                                                                   
 - Map tiles: [OpenFreeMap](https://openfreemap.org), built on OpenMapTiles.
 - Photos: [Wikimedia Commons](https://commons.wikimedia.org), credited per photo.
 - Map engine: [MapLibre GL JS](https://maplibre.org) (BSD-3-Clause).
-- Fonts: [Fraunces](https://github.com/undercasetype/Fraunces) and [DM Sans](https://github.com/googlefonts/dm-fonts), SIL Open Font License, via Fontsource.
+- Fonts: [Fraunces](https://github.com/undercasetype/Fraunces) and [Instrument Sans](https://github.com/Instrument/instrument-sans), SIL Open Font License, via Fontsource.
 - Dog rules: [Göteborg & Co](https://www.goteborg.com/guider/hundvanliga-goteborg) and Jaktlagen (1987:259).
 
 ## Licence

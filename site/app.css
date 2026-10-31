@@ -1,7 +1,7 @@
 @font-face { font-family: 'Fraunces'; font-weight: 500; font-display: swap; src: url('/fonts/fraunces-latin-500-normal.woff2') format('woff2'); }
-@font-face { font-family: 'DM Sans'; font-weight: 400; font-display: swap; src: url('/fonts/dm-sans-latin-400-normal.woff2') format('woff2'); }
-@font-face { font-family: 'DM Sans'; font-weight: 500; font-display: swap; src: url('/fonts/dm-sans-latin-500-normal.woff2') format('woff2'); }
-@font-face { font-family: 'DM Sans'; font-weight: 600; font-display: swap; src: url('/fonts/dm-sans-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Instrument Sans'; font-weight: 400; font-display: swap; src: url('/fonts/instrument-sans-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Instrument Sans'; font-weight: 500; font-display: swap; src: url('/fonts/instrument-sans-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Instrument Sans'; font-weight: 600; font-display: swap; src: url('/fonts/instrument-sans-latin-600-normal.woff2') format('woff2'); }
 
 /* The official Ellenial colours, the same set as ellenial.app and Gillefeeling. */
 :root {
@@ -9,7 +9,7 @@
   --ink: #1F1A2E; --muted: #575166; --brand: #342E86; --accent: #342E86; --on-accent: #FFFFFF; --accent-ink: #342E86;
   --green-bg: #D5E3D6; --green-ink: #2F5A3D; --blue-bg: #D3E2EC; --blue-ink: #2E4757; --warn-bg: #F5E3E0; --warn-ink: #A2433B;
   --place: #342E86; --toilet: #4F6676; --water: #2F82B0; --dog: #8E63B3; --season: #B39AE8;
-  --serif: 'Fraunces', Georgia, serif; --sans: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --serif: 'Fraunces', Georgia, serif; --sans: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
