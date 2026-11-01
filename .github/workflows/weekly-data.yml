@@ -1,8 +1,8 @@
-# Rebuilds data/gothenburg.json every Monday night, so phones never ask OpenStreetMap or
+# Rebuilds data/sweden/ (one small file per map square) every Monday night, so phones never ask OpenStreetMap or
 # Wikimedia themselves. A push of the new file makes Vercel redeploy the site.
 #
 # The OpenStreetMap data comes from Geofabrik's daily Sweden file (one download, no busy
-# public server to queue for). osmium cuts out the area and the tags the app uses.
+# public server to queue for). osmium keeps only the tags the app uses, for all of Sweden.
 # If a week fails or looks wrong, the data file is not replaced and last week's stays live;
 # data/report.json is committed either way, so what happened is visible in the repo.
 name: Weekly data
@@ -26,14 +26,12 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # west,south,east,north. Keep in sync with AREA in scripts/build-data.mjs.
-  AREA_BBOX: '11.70,57.55,12.20,57.86'
   SOURCE_URL: 'https://download.geofabrik.de/europe/sweden-latest.osm.pbf'
 
 jobs:
   data:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -46,10 +44,9 @@ jobs:
           mkdir -p work
           curl -fsSL --retry 3 --retry-delay 30 -A 'ellenial-maps-data/2.0 (https://maps.ellenial.app)' -o work/sweden.osm.pbf "$SOURCE_URL"
           ls -lh work/sweden.osm.pbf
-      - name: Cut out the area and the tags we use
+      - name: Keep only the tags we use
         run: |
-          osmium extract -b "$AREA_BBOX" --strategy=smart -o work/area.osm.pbf work/sweden.osm.pbf
-          osmium tags-filter work/area.osm.pbf \
+          osmium tags-filter work/sweden.osm.pbf \
             nwr/leisure=park,nature_reserve,garden,bathing_place,swimming_area,dog_park \
             nwr/boundary=protected_area \
             nwr/tourism=viewpoint \
@@ -62,22 +59,24 @@ jobs:
             -o work/filtered.osm.pbf
           osmium export work/filtered.osm.pbf -f geojsonseq -a type,id -o work/area.geojsonseq
           wc -l work/area.geojsonseq
+          ls -lh work/filtered.osm.pbf work/area.geojsonseq
       - name: Build the data file
         id: build
         continue-on-error: true
-        run: node scripts/build-data.mjs --input work/area.geojsonseq
+        run: node --max-old-space-size=6144 scripts/build-data.mjs --input work/area.geojsonseq
       - name: Commit the data and the report if they changed
         if: always()
         run: |
           git config user.name "ellenial-maps weekly data"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/gothenburg.json data/report.json 2>/dev/null || true
+          git add -A data/sweden data/photo-cache.json data/report.json 2>/dev/null || true
           if git diff --staged --quiet; then
             echo "No changes this week."
           else
             git commit -m "Weekly data: $(date -u +%F)"
-            git pull --rebase origin main
-            git push origin HEAD:main
+            # Pushes to the branch the run started on (main every Monday; a test branch when run by hand).
+            git pull --rebase origin "$GITHUB_REF_NAME"
+            git push origin "HEAD:$GITHUB_REF_NAME"
           fi
       - name: Mark the run as failed if the data step failed
         if: steps.build.outcome == 'failure'
