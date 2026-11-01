@@ -136,16 +136,41 @@
     return dot
   }
 
-  // No photo yet: a calm block in the setting's colour with its icon and a word in brackets.
-  function placeholder(setting, cls) {
+  // No photo yet: the place's own outline from the map when it has one (decided 1 Nov), with the
+  // pin's icon and a short word in the corner so it reads at a glance. Places that are only a point
+  // on the map keep a calm block in the setting's colour with its icon and a word in brackets.
+  const SVG_NS = 'http://www.w3.org/2000/svg'
+  function placeholder(setting, cls, p) {
     const big = /pcard__img|hero__img/.test(cls || '')
+    if (p && Array.isArray(p.outline) && p.outline.length >= 8) return outlineCard(p, cls, big)
     return h('div', { class: `placeholder placeholder--${setting} ${cls || ''}`, role: 'img', 'aria-label': t().noPhoto },
       settingIcon(setting, big ? 28 : 20), big ? h('span', null, t().placeholders[setting]) : null)
   }
 
-  // If a photo can't load, show the bracket placeholder instead of a broken image.
-  function photoOr(img, setting, cls) {
-    img.addEventListener('error', () => { img.parentElement?.querySelector('.hero__credit')?.remove(); img.replaceWith(placeholder(setting, cls)) }, { once: true })
+  function outlineCard(p, cls, big) {
+    const [w, hh, ...xy] = p.outline
+    const pad = 6
+    const svg = document.createElementNS(SVG_NS, 'svg')
+    svg.setAttribute('viewBox', `${-pad} ${-pad} ${w + pad * 2} ${hh + pad * 2}`)
+    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet')
+    svg.setAttribute('aria-hidden', 'true')
+    svg.setAttribute('class', 'outline__shape')
+    const poly = document.createElementNS(SVG_NS, 'polygon')
+    const pts = []
+    for (let i = 0; i + 1 < xy.length; i += 2) pts.push(xy[i] + ',' + xy[i + 1])
+    poly.setAttribute('points', pts.join(' '))
+    poly.setAttribute('vector-effect', 'non-scaling-stroke')
+    svg.append(poly)
+    const s = t()
+    const word = s.kindShort[p.kind] || s.settings[p.setting]
+    return h('div', { class: `outline outline--${p.setting} ${big ? 'outline--big' : ''} ${cls || ''}`, role: 'img', 'aria-label': s.outlineOf(p.name) },
+      svg,
+      big ? h('span', { class: 'outline__label' }, settingIcon(p.setting, 14), word) : null)
+  }
+
+  // If a photo can't load, show the outline or placeholder instead of a broken image.
+  function photoOr(img, setting, cls, p) {
+    img.addEventListener('error', () => { img.parentElement?.querySelector('.hero__credit')?.remove(); img.replaceWith(placeholder(setting, cls, p)) }, { once: true })
     return img
   }
 
@@ -294,8 +319,8 @@
 
   function placeImg(p, w, hgt, cls) {
     return p.photo
-      ? photoOr(h('img', { class: cls, src: p.photo.src, alt: '', loading: 'lazy', width: w, height: hgt }), p.setting, cls)
-      : placeholder(p.setting, cls)
+      ? photoOr(h('img', { class: cls, src: p.photo.src, alt: '', loading: 'lazy', width: w, height: hgt }), p.setting, cls, p)
+      : placeholder(p.setting, cls, p)
   }
 
   function shelf(title, items) {
@@ -643,7 +668,7 @@
 
     return h('div', { class: 'page page--place' },
       h('div', { class: 'hero' },
-        ph ? photoOr(h('img', { class: 'hero__img', src: ph.src, alt: '', width: ph.w, height: ph.h }), p.setting, 'hero__img') : placeholder(p.setting, 'hero__img'),
+        ph ? photoOr(h('img', { class: 'hero__img', src: ph.src, alt: '', width: ph.w, height: ph.h }), p.setting, 'hero__img', p) : placeholder(p.setting, 'hero__img', p),
         h('a', { class: 'round-btn hero__back', href: '#/', 'aria-label': s.back, onclick: goBack }, svg(ICON.back)),
         ph ? h('a', { class: 'hero__credit', href: ph.page, rel: 'noopener noreferrer', target: '_blank' }, s.photoBy(ph.by, ph.licence)) : null),
       h('div', { class: 'place' },
