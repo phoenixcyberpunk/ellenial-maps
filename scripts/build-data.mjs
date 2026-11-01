@@ -374,6 +374,9 @@ async function main() {
       places: out.length,
       bySetting: out.reduce((m, p) => ((m[p.setting] = (m[p.setting] || 0) + 1), m), {}),
       withPhoto: out.filter((p) => p.photo).length,
+      // Places still without a photo after Commons (OSM tags) and Wikidata (P18 / P373); they show the placeholder.
+      withoutPhoto: out.filter((p) => !p.photo).length,
+      withoutPhotoBySetting: out.filter((p) => !p.photo).reduce((m, p) => ({ ...m, [p.setting]: (m[p.setting] || 0) + 1 }), {}),
       toilets: toilets.length, water: water.length, dogParks: dogParks.length,
     },
     places: out.sort((a, b) => a.name.localeCompare(b.name, 'sv')),
