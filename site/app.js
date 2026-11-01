@@ -128,6 +128,14 @@
     return document.importNode(doc.documentElement, true)
   }
 
+  // Legend entry: the same disc and icon as the pin on the map.
+  function legendDot(kind, icon) {
+    const dot = h('span', { class: 'dot dot--' + kind, 'aria-hidden': 'true' })
+    const svg = settingIcon(icon, 11)
+    if (svg) { svg.setAttribute('stroke-width', '2.6'); dot.append(svg) }
+    return dot
+  }
+
   // No photo yet: a calm block in the setting's colour with its icon and a word in brackets.
   function placeholder(setting, cls) {
     const big = /pcard__img|hero__img/.test(cls || '')
@@ -234,9 +242,9 @@
       h('div', { class: 'sheet__count' },
         h('h2', { class: 'sheet__title' }, near ? s.placesNearby(near) : s.placesCount(list.length)),
         h('span', { class: 'legend' },
-          h('span', { class: 'legend__item' }, h('span', { class: 'dot dot--toilet', 'aria-hidden': 'true' }), s.toilet),
-          h('span', { class: 'legend__item' }, h('span', { class: 'dot dot--water', 'aria-hidden': 'true' }), s.waterTap),
-          state.dog ? h('span', { class: 'legend__item' }, h('span', { class: 'dot dot--dog', 'aria-hidden': 'true' }), s.dogRun) : null)),
+          h('span', { class: 'legend__item' }, legendDot('toilet', 'toilet'), s.toilet),
+          h('span', { class: 'legend__item' }, legendDot('water', 'tap'), s.waterTap),
+          state.dog ? h('span', { class: 'legend__item' }, legendDot('dog', 'dogrun'), s.dogRun) : null)),
       state.dog ? dogStrip() : null)
 
     const dogShelf = ['dog', list.filter(({ p }) => goodWithDog(p))]
@@ -439,23 +447,31 @@
   // ---------- the map ----------
   const isDark = () => window.EllenialTheme ? window.EllenialTheme.resolved() === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches
 
-  // Pins: a coloured disc with the setting's icon, drawn once per theme from icons.js.
+  // Pins: a coloured disc with an icon, drawn once per theme from icons.js. Places get the setting's
+  // icon; toilets, water taps and dog runs get their own smaller pins, so no kind of pin is told
+  // apart by colour alone (Ellenial accessibility rule).
+  const FACILITY_PINS = (dark) => [
+    ['fac-toilet', 'toilet', '#4F6676', '#FFFFFF', 40],
+    ['fac-tap', 'tap', '#2F82B0', '#FFFFFF', 40],
+    ['fac-dogrun', 'dogrun', dark ? '#C7B4F0' : '#8E63B3', dark ? '#1A1430' : '#FFFFFF', 48],
+  ]
   const pinCache = {}
   function pinImages(dark) {
     if (pinCache[dark]) return pinCache[dark]
     const fillC = dark ? '#B39AE8' : '#342E86', ring = dark ? '#17141F' : '#FFFFFF', ink = dark ? '#1A1430' : '#FFFFFF'
-    const S = 56 // 28 css px at pixelRatio 2
-    pinCache[dark] = Promise.all(SETTINGS.map((key) => new Promise((resolve) => {
+    const jobs = SETTINGS.map((key) => ['pin-' + key, key, fillC, ink, 56]).concat(FACILITY_PINS(dark)) // sizes are 2x css px
+    pinCache[dark] = Promise.all(jobs.map(([id, key, fill, iconInk, S]) => new Promise((resolve) => {
       const c = document.createElement('canvas'); c.width = S; c.height = S
       const g = c.getContext('2d')
       g.beginPath(); g.arc(S / 2, S / 2, S / 2 - 3, 0, Math.PI * 2)
-      g.fillStyle = fillC; g.fill(); g.lineWidth = 4; g.strokeStyle = ring; g.stroke()
+      g.fillStyle = fill; g.fill(); g.lineWidth = 4; g.strokeStyle = ring; g.stroke()
       const inner = (window.EM_ICONS || {})[key]
-      if (!inner) return resolve([key, g.getImageData(0, 0, S, S)])
-      const svgText = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${ink}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`
+      if (!inner) return resolve([id, g.getImageData(0, 0, S, S)])
+      const svgText = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${iconInk}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`
       const img = new Image()
-      img.onload = () => { g.drawImage(img, S / 2 - 15, S / 2 - 15, 30, 30); resolve([key, g.getImageData(0, 0, S, S)]) }
-      img.onerror = () => resolve([key, g.getImageData(0, 0, S, S)])
+      const d = Math.round(S * 0.54)
+      img.onload = () => { g.drawImage(img, (S - d) / 2, (S - d) / 2, d, d); resolve([id, g.getImageData(0, 0, S, S)]) }
+      img.onerror = () => resolve([id, g.getImageData(0, 0, S, S)])
       img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgText)
     })))
     return pinCache[dark]
@@ -495,14 +511,16 @@
         const forDark = dark
         const pins = await pinImages(forDark)
         if (forDark !== dark || map.getLayer('em-places')) return
-        for (const [key, data] of pins) if (!map.hasImage('pin-' + key)) map.addImage('pin-' + key, data, { pixelRatio: 2 })
+        for (const [id, data] of pins) if (!map.hasImage(id)) map.addImage(id, data, { pixelRatio: 2 })
         const empty = { type: 'FeatureCollection', features: [] }
         for (const id of ['places', 'toilets', 'water', 'dogparks', 'me']) if (!map.getSource('em-' + id)) map.addSource('em-' + id, { type: 'geojson', data: empty })
         const ink = dark ? '#17141F' : '#FFFFFF'
         const brand = dark ? '#B39AE8' : '#342E86'
-        map.addLayer({ id: 'em-toilets', type: 'circle', source: 'em-toilets', minzoom: 12, paint: { 'circle-radius': 4.5, 'circle-color': '#4F6676', 'circle-stroke-color': ink, 'circle-stroke-width': 1.5 } })
-        map.addLayer({ id: 'em-water', type: 'circle', source: 'em-water', minzoom: 12, paint: { 'circle-radius': 4.5, 'circle-color': '#2F82B0', 'circle-stroke-color': ink, 'circle-stroke-width': 1.5 } })
-        map.addLayer({ id: 'em-dogparks', type: 'circle', source: 'em-dogparks', paint: { 'circle-radius': 6, 'circle-color': dark ? '#C7B4F0' : '#8E63B3', 'circle-stroke-color': ink, 'circle-stroke-width': 2 } })
+        const facility = (id, src, image, minzoom) => map.addLayer({ id, type: 'symbol', source: src, minzoom,
+          layout: { 'icon-image': image, 'icon-size': ['interpolate', ['linear'], ['zoom'], 12, 0.7, 15, 1], 'icon-allow-overlap': true, 'icon-ignore-placement': true } })
+        facility('em-toilets', 'em-toilets', 'fac-toilet', 12)
+        facility('em-water', 'em-water', 'fac-tap', 12)
+        facility('em-dogparks', 'em-dogparks', 'fac-dogrun', 0)
         map.addLayer({ id: 'em-sel', type: 'circle', source: 'em-places', filter: ['==', ['get', 'id'], ''], paint: { 'circle-radius': 24, 'circle-color': brand, 'circle-opacity': 0.22, 'circle-stroke-color': brand, 'circle-stroke-width': 2.5 } })
         map.addLayer({
           id: 'em-places', type: 'symbol', source: 'em-places',

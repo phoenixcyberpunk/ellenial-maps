@@ -8,11 +8,13 @@ import { cpSync, mkdirSync, rmSync, copyFileSync, existsSync, readFileSync, writ
 
 // One person-made, openly licensed icon per setting, from Lucide (ISC licence, credited on the
 // About page). Written into /icons.js so the map pins and placeholders need no extra requests.
-const ICONS = { nature: 'trees', water: 'waves', urban: 'tree-deciduous', squares: 'landmark', gardens: 'flower-2', view: 'binoculars', libraries: 'book-open' }
+const ICONS = { nature: 'trees', water: 'waves', urban: 'tree-deciduous', squares: 'landmark', gardens: 'flower-2', view: 'binoculars', libraries: 'book-open',
+  // Small map pins for the facilities, so they never rely on colour alone (Ellenial accessibility rule).
+  toilet: 'toilet', tap: 'droplet', dogrun: 'dog' }
 
 const FONTS = [
   ['fraunces', [500]],
-  ['instrument-sans', [400, 500, 600]],
+  ['dm-sans', [400, 500, 600]],
 ]
 
 rmSync('dist', { recursive: true, force: true })
