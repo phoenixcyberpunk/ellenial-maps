@@ -26,6 +26,10 @@ const PHOTO_CACHE = 'data/photo-cache.json'
 const USER_AGENT = 'ellenial-maps-data/2.0 (https://maps.ellenial.app; https://github.com/phoenixcyberpunk/ellenial-maps)'
 const COMMONS = 'https://commons.wikimedia.org/w/api.php'
 const WIKIDATA = 'https://www.wikidata.org/w/api.php'
+const WDQS = 'https://query.wikidata.org/sparql'
+// Nearby-photo lookups per week. The rest wait for the following weeks (answers are cached),
+// so a run stays well inside the job's time limit.
+const GEO_PER_RUN = 2000
 
 const BIG_HA = 10 // places this big or bigger are "big, open"; smaller ones are "small, cosy"
 const NATURE_PARK_HA = 30 // a park this big feels like nature rather than a city park
@@ -257,6 +261,51 @@ function loadCache() {
 }
 const fresh = (entry) => entry && Date.now() - Date.parse(entry.t) < FRESH_MS
 
+// Names compared without case, punctuation or words like "naturreservat" and "park".
+const normName = (n) => (n || '').toLowerCase().normalize('NFC')
+  .replace(/\b(naturreservat|naturreservatet|nature reserve|park|parken|badplats|badplatsen|stadsbibliotek)\b/g, '')
+  .replace(/[^a-zåäöéü0-9]+/g, ' ').trim()
+// Is point c within d metres of the place's box?
+function nearBox(c, p, d) {
+  const dLat = d / 111320, dLon = d / (111320 * Math.cos((p.lat * Math.PI) / 180))
+  const [s, w, n, e] = p.box
+  return c.lat >= s - dLat && c.lat <= n + dLat && c.lon >= w - dLon && c.lon <= e + dLon
+}
+// Is point c inside the place's box, shrunk by a share on each side (so not at its edge)?
+function insideBox(c, p, margin) {
+  const [s, w, n, e] = p.box
+  const mLat = (n - s) * margin, mLon = (e - w) * margin
+  return c.lat > s + mLat && c.lat < n - mLat && c.lon > w + mLon && c.lon < e - mLon
+}
+
+// Every place in Sweden on Wikidata with a photo and a position, of the kinds the map shows.
+// One query per kind (asking for all at once can time out). Returns name -> [{lat, lon, image}].
+const WD_KINDS = { 'protected area': 'Q473972', park: 'Q22698', beach: 'Q40080', square: 'Q174782', garden: 'Q1107656', library: 'Q7075', viewpoint: 'Q6017969' }
+async function wikidataPhotos() {
+  const out = new Map()
+  for (const [label, q] of Object.entries(WD_KINDS)) {
+    const query = `SELECT ?name ?image ?coord WHERE { ?item wdt:P17 wd:Q34; wdt:P31/wdt:P279* wd:${q}; wdt:P18 ?image; wdt:P625 ?coord; rdfs:label ?name. FILTER(LANG(?name) = "sv") }`
+    try {
+      await sleep(1000)
+      const res = await getJson(`${WDQS}?${new URLSearchParams({ query, format: 'json' })}`)
+      for (const b of res.results?.bindings || []) {
+        const m = /Point\(([-\d.]+) ([-\d.]+)\)/.exec(b.coord?.value || '')
+        if (!m) continue
+        const image = decodeURIComponent(b.image.value.split('/').pop()).replace(/_/g, ' ')
+        const key = normName(b.name.value)
+        if (!key) continue
+        if (!out.has(key)) out.set(key, [])
+        out.get(key).push({ lat: +m[2], lon: +m[1], image })
+      }
+      trail.push(`wikidata ${label}: ${res.results?.bindings?.length ?? 0} with photos`)
+    } catch (e) {
+      console.warn(`Wikidata query (${label}): ${e.message}`)
+      trail.push(`wikidata ${label}: failed (${String(e.message).slice(0, 80)})`)
+    }
+  }
+  return out
+}
+
 async function addPhotos(places) {
   const cache = loadCache()
   const stamp = new Date().toISOString().slice(0, 10)
@@ -305,6 +354,46 @@ async function addPhotos(places) {
     }
     if (cache.cat[p.category]?.file) p.file = cache.cat[p.category].file
   }
+
+  // Places in Sweden on Wikidata that have a photo, matched by name and location. Many reserves,
+  // parks and beaches have a Wikidata entry with a photo that OpenStreetMap doesn't link to.
+  const wdPhotos = await wikidataPhotos()
+  if (wdPhotos.size) {
+    let hits = 0
+    for (const p of places.filter((x) => !x.file)) {
+      const cands = wdPhotos.get(normName(p.tags.name)) || []
+      const hit = cands.find((c) => nearBox(c, p, 1000))
+      if (hit) { p.file = `File:${hit.image}`; p.photoVia = 'wikidata-match'; hits++ }
+    }
+    trail.push(`photos: ${hits} matched to Wikidata by name and location (${wdPhotos.size} names)`)
+  }
+
+  // Still nothing: a photo on Commons taken at the place itself. One whose title names the place
+  // wins; otherwise, for places with an outline of at least 2 ha, one taken well inside it.
+  const todo = places.filter((x) => !x.file).sort((a, b) => (b.ha ?? 0) - (a.ha ?? 0))
+  let geoAsked = 0, geoHits = 0
+  for (const p of todo) {
+    const key = `${p.e.type}/${p.e.id}`
+    let entry = cache.geo?.[key]
+    if (!fresh(entry) && geoAsked < GEO_PER_RUN) {
+      geoAsked++
+      try {
+        const radius = Math.round(Math.min(2000, Math.max(100, p.m2 ? Math.sqrt(p.m2) / 2 : 100)))
+        const res = await commonsApi({ action: 'query', list: 'geosearch', gscoord: `${p.lat}|${p.lon}`, gsradius: String(radius), gsnamespace: '6', gslimit: '30' })
+        asked++
+        const found = (res.query?.geosearch || []).filter((g) => /\.(jpe?g|png|webp)$/i.test(g.title))
+        const name = normName(p.tags.name)
+        const named = name.length >= 4 && found.find((g) => normName(g.title.replace(/^File:/, '').replace(/\.[a-z]+$/i, '')).includes(name))
+        const inside = p.ring && (p.ha ?? 0) >= 2 ? found.find((g) => insideBox(g, p, 0.25)) : null
+        entry = { file: (named || inside)?.title || null, t: stamp }
+        ;(cache.geo ||= {})[key] = entry
+      } catch (e) {
+        console.warn(`Nearby photos ${key}: ${e.message}`)
+      }
+    }
+    if (entry?.file) { p.file = entry.file; p.photoVia = 'nearby'; geoHits++ }
+  }
+  trail.push(`photos: ${geoHits} from photos taken at the place (${geoAsked} new lookups, ${todo.length - geoAsked} places still to check in later weeks)`)
 
   const files = [...new Set(places.map((p) => p.file).filter(Boolean))]
   const askF = files.filter((f) => !fresh(cache.files[f]))
@@ -460,6 +549,8 @@ async function main() {
     places: out.length,
     bySetting: out.reduce((m, p) => ((m[p.setting] = (m[p.setting] || 0) + 1), m), {}),
     withPhoto: out.filter((p) => p.photo).length,
+    // Where the photos came from: linked in OpenStreetMap/Wikidata, matched by name on Wikidata, or taken at the place.
+    photoFrom: places.filter((p) => p.photo).reduce((m, p) => ((m[p.photoVia || 'linked'] = (m[p.photoVia || 'linked'] || 0) + 1), m), {}),
     // Places still without a photo after Commons (OSM tags) and Wikidata (P18 / P373); they show the placeholder.
     withoutPhoto: out.filter((p) => !p.photo).length,
     withoutPhotoBySetting: out.filter((p) => !p.photo).reduce((m, p) => ({ ...m, [p.setting]: (m[p.setting] || 0) + 1 }), {}),
