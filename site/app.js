@@ -236,16 +236,18 @@
         h('span', { class: 'legend' },
           h('span', { class: 'legend__item' }, h('span', { class: 'dot dot--toilet', 'aria-hidden': 'true' }), s.toilet),
           h('span', { class: 'legend__item' }, h('span', { class: 'dot dot--water', 'aria-hidden': 'true' }), s.waterTap),
-          state.dog ? h('span', { class: 'legend__item' }, h('span', { class: 'dot dot--dog', 'aria-hidden': 'true' }), s.dogRun) : null)))
+          state.dog ? h('span', { class: 'legend__item' }, h('span', { class: 'dot dot--dog', 'aria-hidden': 'true' }), s.dogRun) : null)),
+      state.dog ? dogStrip() : null)
 
+    const dogShelf = ['dog', list.filter(({ p }) => goodWithDog(p))]
     const shelves = [
+      ...(state.dog ? [dogShelf] : []),
       ['closest', list],
-      ['dog', list.filter(({ p }) => goodWithDog(p))],
+      ...(state.dog ? [] : [dogShelf]),
       ['nature', list.filter(({ p }) => p.setting === 'nature')],
       ['indoor', list.filter(({ p }) => p.setting === 'libraries' || p.nearby.shelter)],
     ]
     fill($('#panel-body'),
-      state.dog ? h('div', { class: 'sheet__pad' }, dogTeaser()) : null,
       list.length
         ? shelves.map(([key, items]) => items.length ? shelf(s.sections[key], items.slice(0, SHELF)) : null)
         : h('div', { class: 'empty sheet__pad' }, h('p', null, s.nothingFound),
@@ -334,14 +336,17 @@
     if (p) requestAnimationFrame(() => $(`.pcard[data-id="${CSS.escape(p.id)}"]`)?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' }))
   }
 
-  function dogTeaser() {
+  // With "Bringing a dog?" on: one line in the always-visible part of the panel that says what
+  // changed, and leads to today's dog rules.
+  function dogStrip() {
     const s = t()
     const r = state.data.dogRules.national
     const on = inRange(r.from, r.to)
-    return h('a', { class: 'card card--dog', href: '#/dog' },
-      h('div', { class: 'card__body' },
-        h('div', { class: 'card__head' }, h('span', { class: 'card__name' }, s.withYourDog), h('span', { class: 'tag ' + (on ? 'tag--warn' : 'tag--free') }, on ? s.natureSeasonOn : s.natureSeasonOff)),
-        h('span', { class: 'card__kind' }, `${s.natureSeason}: ${fmtDay(r.from)} – ${fmtDay(r.to)}`)))
+    return h('a', { class: 'dogstrip', href: '#/dog' },
+      h('span', { class: 'dogstrip__text' },
+        h('span', { class: 'dogstrip__title' }, s.dogStripTitle),
+        h('span', { class: 'dogstrip__line' }, on ? s.dogStripOn(fmtDay(r.to)) : s.dogStripOff(fmtDay(r.from)))),
+      svg(ICON.next, 18))
   }
 
   function nearMe(e) {
