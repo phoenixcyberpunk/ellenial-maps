@@ -11,6 +11,11 @@ on:
   schedule:
     - cron: '17 3 * * 1'
   workflow_dispatch:
+    inputs:
+      allow_drop:
+        description: 'Allow far fewer places than last week (only after a deliberate rule change)'
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths:
@@ -52,7 +57,6 @@ jobs:
             nwr/tourism=viewpoint \
             nwr/place=square \
             w/highway=pedestrian \
-            n/natural=peak,hill \
             nwr/natural=beach \
             nwr/amenity=library,toilets,drinking_water,shelter,bench \
             nwr/landuse=recreation_ground \
@@ -63,7 +67,7 @@ jobs:
       - name: Build the data file
         id: build
         continue-on-error: true
-        run: node --max-old-space-size=6144 scripts/build-data.mjs --input work/area.geojsonseq
+        run: node --max-old-space-size=6144 scripts/build-data.mjs --input work/area.geojsonseq ${{ inputs.allow_drop && '--allow-drop' || '' }}
       - name: Commit the data and the report if they changed
         if: always()
         run: |
