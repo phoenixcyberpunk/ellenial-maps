@@ -282,3 +282,18 @@ body.is-locked { overflow: hidden; overscroll-behavior: none; }
 .maplibregl-ctrl-group button:not(:disabled):hover { background-color: var(--soft); }
 :root[data-theme="dark"] .maplibregl-ctrl-icon { filter: invert(.93); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme]) .maplibregl-ctrl-icon { filter: invert(.93); } }
+
+/* Outline cards: the place's own shape from the map when there's no photo (decided 1 Nov 2026).
+   Fill and edge follow the setting; the corner label repeats the pin's icon with a short word,
+   so the card reads at a glance and never by colour alone. */
+.outline { position: relative; display: block; overflow: hidden; background: var(--surface); --o-fill: var(--soft); --o-ink: var(--accent); --o-on: var(--on-accent); }
+.outline--nature, .outline--urban, .outline--gardens { --o-fill: var(--green-bg); --o-ink: var(--green-ink); --o-on: var(--surface); }
+.outline--water { --o-fill: var(--blue-bg); --o-ink: var(--blue-ink); --o-on: var(--surface); }
+.outline__shape { position: absolute; inset: 8px; width: calc(100% - 16px); height: calc(100% - 16px); }
+.outline--big .outline__shape { inset: 34px 14px 10px; width: calc(100% - 28px); height: calc(100% - 44px); }
+.outline__shape polygon { fill: var(--o-fill); stroke: var(--o-ink); stroke-width: 2; stroke-linejoin: round; }
+.outline__label { position: absolute; top: 8px; left: 8px; display: inline-flex; align-items: center; gap: 4px; max-width: calc(100% - 16px);
+  padding: 3px 9px 3px 7px; border-radius: 999px; background: var(--o-ink); color: var(--o-on); font-size: 12px; font-weight: 600; line-height: 1.3; white-space: nowrap; }
+.outline__label svg { flex: none; stroke-width: 2.4; }
+.hero__img.outline--big .outline__shape { inset: 56px 24px 20px; width: calc(100% - 48px); height: calc(100% - 76px); }
+.hero__img.outline .outline__label { top: auto; bottom: 14px; left: auto; right: 16px; font-size: 13px; padding: 4px 11px 4px 9px; }
