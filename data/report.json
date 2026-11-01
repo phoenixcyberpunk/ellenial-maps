@@ -1,5 +1,5 @@
 {
- "generated": "2026-10-30T07:20:27.170Z",
+ "generated": "2026-11-01T12:01:36.923Z",
  "source": "Geofabrik Sweden extract (OpenStreetMap)",
  "features": 12243,
  "landmarks": {
@@ -27,6 +27,16 @@
    "view": 83
   },
   "withPhoto": 73,
+  "withoutPhoto": 283,
+  "withoutPhotoBySetting": {
+   "nature": 8,
+   "urban": 82,
+   "squares": 39,
+   "water": 30,
+   "gardens": 8,
+   "libraries": 35,
+   "view": 81
+  },
   "toilets": 190,
   "water": 47,
   "dogParks": 73
