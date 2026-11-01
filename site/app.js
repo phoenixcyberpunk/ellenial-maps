@@ -150,7 +150,18 @@
     return h('footer', { class: 'footer' },
       h('p', { class: 'footer__slogan' }, state.dog ? s.shortWalk : s.footerSlogan),
       h('p', { class: 'footer__line' }, s.footerLine),
-      h('p', { class: 'footer__links' }, h('a', { href: '#/about' }, s.about), ' · ', langSwitch()))
+      h('p', { class: 'footer__links' }, h('a', { href: '#/about' }, s.about)),
+      h('div', { class: 'footer__prefs' }, langSwitch(), themeSwitch()))
+  }
+
+  // Auto / Light / Dark, from the shared Ellenial pattern (ellenial-theme.js), saved on this phone only.
+  function themeSwitch() {
+    const s = t()
+    if (!window.EllenialTheme) return null
+    return window.EllenialTheme.control({
+      label: s.theme, autoHint: s.themeAutoHint, separator: ' · ',
+      labels: { auto: s.themeAuto, light: s.themeLight, dark: s.themeDark },
+    })
   }
 
   function langSwitch() {
@@ -264,13 +275,15 @@
   }
 
   // ---------- the map ----------
+  const isDark = () => window.EllenialTheme ? window.EllenialTheme.resolved() === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches
+
   function initMap() {
     if (map || !window.maplibregl) return
     try {
       const gl = document.createElement('canvas').getContext('webgl2') || document.createElement('canvas').getContext('webgl')
       if (!gl) throw new Error('no webgl')
       window.maplibregl.setWorkerUrl('/vendor/maplibre-gl-csp-worker.js')
-      const dark = matchMedia('(prefers-color-scheme: dark)').matches
+      let dark = isDark()
       map = new window.maplibregl.Map({
         container: 'map',
         style: window.mapStyle(location.origin, dark),
@@ -285,9 +298,11 @@
       })
       map.addControl(new window.maplibregl.NavigationControl({ showCompass: false }), 'top-right')
       map.addControl(new window.maplibregl.AttributionControl({ compact: true, customAttribution: '© OpenStreetMap · OpenFreeMap' }))
-      map.on('load', () => {
+      // Our own dots sit on top of the base map. A new theme means a new base style, which drops
+      // them, so they are added again every time a style finishes loading.
+      const addOwnLayers = () => {
         const empty = { type: 'FeatureCollection', features: [] }
-        for (const id of ['places', 'toilets', 'water', 'dogparks', 'me']) map.addSource('em-' + id, { type: 'geojson', data: empty })
+        for (const id of ['places', 'toilets', 'water', 'dogparks', 'me']) if (!map.getSource('em-' + id)) map.addSource('em-' + id, { type: 'geojson', data: empty })
         const ink = dark ? '#17141F' : '#FFFFFF'
         const brand = dark ? '#B39AE8' : '#342E86'
         map.addLayer({ id: 'em-toilets', type: 'circle', source: 'em-toilets', minzoom: 12, paint: { 'circle-radius': 4.5, 'circle-color': '#4F6676', 'circle-stroke-color': ink, 'circle-stroke-width': 1.5 } })
@@ -295,11 +310,21 @@
         map.addLayer({ id: 'em-dogparks', type: 'circle', source: 'em-dogparks', paint: { 'circle-radius': 6, 'circle-color': dark ? '#C7B4F0' : '#8E63B3', 'circle-stroke-color': ink, 'circle-stroke-width': 2 } })
         map.addLayer({ id: 'em-places', type: 'circle', source: 'em-places', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 4, 14, 8], 'circle-color': brand, 'circle-stroke-color': ink, 'circle-stroke-width': 2 } })
         map.addLayer({ id: 'em-me', type: 'circle', source: 'em-me', paint: { 'circle-radius': 7, 'circle-color': dark ? '#F3EEF8' : '#1F1A2E', 'circle-stroke-color': dark ? '#17141F' : '#FEF2E2', 'circle-stroke-width': 3 } })
+        mapReady = true
+        updateMap(visible())
+      }
+      map.on('load', () => {
+        addOwnLayers()
         map.on('click', 'em-places', (e) => { const id = e.features[0]?.properties?.id; if (id) { internalNav = true; location.hash = `#/place/${id}` } })
         map.on('mouseenter', 'em-places', () => { map.getCanvas().style.cursor = 'pointer' })
         map.on('mouseleave', 'em-places', () => { map.getCanvas().style.cursor = '' })
-        mapReady = true
-        updateMap(visible())
+        window.EllenialTheme?.onChange(({ resolved }) => {
+          if ((resolved === 'dark') === dark) return
+          dark = resolved === 'dark'
+          mapReady = false
+          map.once('style.load', addOwnLayers)
+          map.setStyle(window.mapStyle(location.origin, dark), { diff: false })
+        })
       })
       map.on('error', (e) => console.warn('map:', e.error?.message || e))
     } catch (err) {
