@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-01T16:14:35.976Z",
+ "generated": "2026-11-01T18:17:06.407Z",
  "source": "Geofabrik Sweden extract (OpenStreetMap)",
  "features": 137719,
  "landmarks": {
@@ -27,8 +27,8 @@
   "wikidata library: 154 with photos",
   "wikidata viewpoint: 20 with photos",
   "photos: 285 matched to Wikidata by name and location (3056 names)",
-  "photos: 28 from photos taken at the place (895 new lookups, 9991 places still to check in later weeks)",
-  "photos: 902 requests to Wikimedia (0 new Wikidata items, 252 new files)",
+  "photos: 37 from photos taken at the place (812 new lookups, 10074 places still to check in later weeks)",
+  "photos: 813 requests to Wikimedia (0 new Wikidata items, 9 new files)",
   "photos: stopped early to stay inside the time limit; the rest is asked next week"
  ],
  "counts": {
@@ -42,15 +42,15 @@
    "libraries": 665,
    "view": 542
   },
-  "withPhoto": 2853,
+  "withPhoto": 2861,
   "photoFrom": {
    "linked": 2540,
    "wikidata-match": 285,
-   "nearby": 28
+   "nearby": 36
   },
-  "withoutPhoto": 10860,
+  "withoutPhoto": 10852,
   "withoutPhotoBySetting": {
-   "nature": 4695,
+   "nature": 4687,
    "urban": 2929,
    "water": 1520,
    "gardens": 171,
@@ -63,5 +63,5 @@
   "dogParks": 1113,
   "squares": 705
  },
- "seconds": 1513
+ "seconds": 1506
 }
