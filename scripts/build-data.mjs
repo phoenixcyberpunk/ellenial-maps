@@ -1,22 +1,28 @@
-// Builds data/gothenburg.json: the one file every phone reads.
+// Builds the data every phone reads: data/sweden/index.json plus one small file per map square
+// (data/sweden/<square>.json), so a phone only downloads the squares it is looking at.
 //
 // Runs weekly on GitHub's servers (see .github/workflows/weekly-data.yml), so phones never
 // talk to OpenStreetMap or Wikimedia themselves. Before this script runs, the workflow
-// downloads Sweden's OpenStreetMap file from Geofabrik, cuts out the Gothenburg area and the
-// tags we use with osmium, and exports them as GeoJSON (one feature per line). This script:
-//   1. reads those features (places, toilets, water taps, benches, shelters, dog runs),
+// downloads Sweden's OpenStreetMap file from Geofabrik, keeps only the tags we use with osmium,
+// and exports them as GeoJSON (one feature per line). This script:
+//   1. reads those features line by line (places, toilets, water taps, benches, shelters, dog runs),
 //   2. works out each place's setting, size and what's close by,
-//   3. finds an openly licensed photo on Wikimedia Commons, with its credit,
-//   4. adds Gothenburg's dog rules from data/dog-rules-goteborg.json,
-//   5. writes the result, but only if it looks sane (so a bad week never empties the map).
+//   3. finds an openly licensed photo on Wikimedia Commons, with its credit (cached between weeks),
+//   4. adds Gothenburg's dog rules (inside Gothenburg only; elsewhere the national rule),
+//   5. writes the squares, but only if the result looks sane (so a bad week never empties the map).
 //
-// Weekly:       node scripts/build-data.mjs --input work/gothenburg.geojsonseq
+// Weekly:       node scripts/build-data.mjs --input work/area.geojsonseq
 // Offline test: node scripts/build-data.mjs --input tests/fixture.geojsonseq --test --no-photos
-import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, renameSync, createReadStream } from 'node:fs'
+import { createInterface } from 'node:readline'
+import '../site/cells.js' // sets globalThis.EllenialCells (same file the app loads)
+const { CELL, cellOf } = globalThis.EllenialCells
 
-// Keep in sync with AREA_BBOX in .github/workflows/weekly-data.yml.
-const AREA = { name: 'Göteborg', south: 57.55, west: 11.70, north: 57.86, east: 12.20 }
-const OUT = 'data/gothenburg.json'
+const AREA = { name: 'Sverige', south: 55.0, west: 10.5, north: 69.2, east: 24.3 }
+// Gothenburg's hand-written dog rules only apply inside this box.
+const LOCAL_DOG_AREA = { name: 'Göteborg', south: 57.55, west: 11.70, north: 57.86, east: 12.20 }
+const OUT_DIR = 'data/sweden'
+const PHOTO_CACHE = 'data/photo-cache.json'
 const USER_AGENT = 'ellenial-maps-data/2.0 (https://maps.ellenial.app; https://github.com/phoenixcyberpunk/ellenial-maps)'
 const COMMONS = 'https://commons.wikimedia.org/w/api.php'
 const WIKIDATA = 'https://www.wikidata.org/w/api.php'
@@ -36,7 +42,8 @@ const report = { generated: new Date().toISOString(), source: 'Geofabrik Sweden 
 const writeReport = () => { if (!test) writeFileSync('data/report.json', JSON.stringify(report, null, 1)) }
 
 // Well-known places that must be on the map. If more than two are missing, the week is broken.
-const LANDMARKS = ['Slottsskogen', 'Delsjö', 'botaniska trädgård', 'Keillers park', 'Kungsparken', 'Trädgårdsföreningen', 'Ramberget', 'Stora Amundö']
+// Gothenburg's, plus a few across Sweden so a week that loses a region is caught too.
+const LANDMARKS = ['Slottsskogen', 'Delsjö', 'botaniska trädgård', 'Keillers park', 'Kungsparken', 'Trädgårdsföreningen', 'Ramberget', 'Stora Amundö', 'Hagaparken', 'Pildammsparken', 'Kungsträdgården', 'Stadsparken']
 
 // ---------- fetching (photos only) ----------
 
@@ -59,18 +66,18 @@ async function getJson(url, tries = 3) {
 
 // osmium export -f geojsonseq writes one feature per line, each starting with a record
 // separator (0x1E). Properties hold the tags plus "@type" and "@id" (from -a type,id).
-function readFeatures(path) {
-  const out = []
-  for (const raw of readFileSync(path, 'utf8').split('\n')) {
+// Read line by line: all of Sweden is far too big to hold as one string.
+async function* readFeatures(path) {
+  const lines = createInterface({ input: createReadStream(path, 'utf8'), crlfDelay: Infinity })
+  for await (const raw of lines) {
     const line = raw.replace(/^\x1e/, '').trim()
     if (!line) continue
     const f = JSON.parse(line)
     const props = f.properties || {}
     const tags = {}
     for (const [k, v] of Object.entries(props)) if (!k.startsWith('@')) tags[k] = String(v)
-    out.push({ type: props['@type'] || 'way', id: props['@id'] ?? 0, tags, geometry: f.geometry })
+    yield { type: props['@type'] || 'way', id: props['@id'] ?? 0, tags, geometry: f.geometry }
   }
-  return out
 }
 
 // ---------- geometry ----------
@@ -89,7 +96,12 @@ function ringArea(points, lat0) {
 }
 
 const ll = (c) => ({ lat: c[1], lon: c[0] })
-const boxOf = (pts) => [Math.min(...pts.map((p) => p.lat)), Math.min(...pts.map((p) => p.lon)), Math.max(...pts.map((p) => p.lat)), Math.max(...pts.map((p) => p.lon))]
+// A loop, not Math.min(...points): big reserves have more points than a function call can take.
+function boxOf(pts) {
+  let s = Infinity, w = Infinity, n = -Infinity, e = -Infinity
+  for (const p of pts) { if (p.lat < s) s = p.lat; if (p.lat > n) n = p.lat; if (p.lon < w) w = p.lon; if (p.lon > e) e = p.lon }
+  return [s, w, n, e]
+}
 
 // Position, area and outline of a GeoJSON geometry from osmium.
 function shape(g) {
@@ -108,7 +120,8 @@ function shape(g) {
   let lat = biggest.reduce((sum, p) => sum + p.lat, 0) / biggest.length
   let lon = biggest.reduce((sum, p) => sum + p.lon, 0) / biggest.length
   if (!inside({ lat, lon }, biggest)) [lat, lon] = [biggest[0].lat, biggest[0].lon]
-  return { lat, lon, m2: Math.max(m2, 0), box, ring: biggest }
+  // Only whether it has an outline is kept; holding every outline for Sweden would fill the memory.
+  return { lat, lon, m2: Math.max(m2, 0), box, ring: true }
 }
 
 function lineShape(points) {
@@ -142,6 +155,31 @@ function near(p, place, d) {
   if (place.ring && p.lat >= s && p.lat <= n && p.lon >= w && p.lon <= e) return true
   return place.ring ? true : metres(p, place) <= d
 }
+
+// A grid of ~1 km buckets, so "is there a toilet near this place?" only looks at points close by.
+const GRID = 0.01
+function grid(points) {
+  const g = new Map()
+  for (const p of points) {
+    const k = `${Math.floor(p.lat / GRID)}:${Math.floor(p.lon / GRID)}`
+    if (!g.has(k)) g.set(k, [])
+    g.get(k).push(p)
+  }
+  return g
+}
+function anyNear(g, place, d) {
+  const dLat = d / 111320
+  const dLon = d / (111320 * Math.cos((place.lat * Math.PI) / 180))
+  const [s, w, n, e] = place.box
+  for (let i = Math.floor((s - dLat) / GRID); i <= Math.floor((n + dLat) / GRID); i++) {
+    for (let j = Math.floor((w - dLon) / GRID); j <= Math.floor((e + dLon) / GRID); j++) {
+      const bucket = g.get(`${i}:${j}`)
+      if (bucket && bucket.some((x) => near(x, place, d))) return true
+    }
+  }
+  return false
+}
+const inBox = (p, a) => p.lat >= a.south && p.lat <= a.north && p.lon >= a.west && p.lon <= a.east
 
 // ---------- classifying ----------
 
@@ -207,48 +245,75 @@ async function commonsApi(params) {
   return getJson(url)
 }
 
+// What Wikidata and Commons answered in earlier weeks, so each week only asks about new places
+// (and refreshes answers older than two months). Kept in the repo as data/photo-cache.json.
+const FRESH_MS = 60 * 864e5
+function loadCache() {
+  try { return JSON.parse(readFileSync(PHOTO_CACHE, 'utf8')) } catch { return { wd: {}, cat: {}, files: {} } }
+}
+const fresh = (entry) => entry && Date.now() - Date.parse(entry.t) < FRESH_MS
+
 async function addPhotos(places) {
+  const cache = loadCache()
+  const stamp = new Date().toISOString().slice(0, 10)
+  let asked = 0
+
   // Wikidata gives a photo (P18) and a Commons category (P373) for well-known places.
   const qids = [...new Set(places.map((p) => p.tags.wikidata).filter((q) => /^Q\d+$/.test(q || '')))]
-  const wd = {}
-  for (let i = 0; i < qids.length; i += 50) {
-    const url = `${WIKIDATA}?${new URLSearchParams({ action: 'wbgetentities', ids: qids.slice(i, i + 50).join('|'), props: 'claims', format: 'json' })}`
-    await sleep(150)
-    const res = await getJson(url)
-    for (const [id, ent] of Object.entries(res.entities || {})) {
-      const claim = (p) => ent.claims?.[p]?.[0]?.mainsnak?.datavalue?.value
-      wd[id] = { image: claim('P18'), category: claim('P373') }
+  const askQ = qids.filter((q) => !fresh(cache.wd[q]))
+  for (let i = 0; i < askQ.length; i += 50) {
+    const batch = askQ.slice(i, i + 50)
+    try {
+      const url = `${WIKIDATA}?${new URLSearchParams({ action: 'wbgetentities', ids: batch.join('|'), props: 'claims', format: 'json' })}`
+      await sleep(150)
+      const res = await getJson(url)
+      asked++
+      for (const q of batch) {
+        const ent = res.entities?.[q]
+        const claim = (prop) => ent?.claims?.[prop]?.[0]?.mainsnak?.datavalue?.value
+        cache.wd[q] = { image: claim('P18') || null, category: claim('P373') || null, t: stamp }
+      }
+    } catch (e) {
+      console.warn(`Wikidata batch ${i}: ${e.message}`)
     }
   }
 
   for (const p of places) {
     const t = p.tags
+    const wd = cache.wd[t.wikidata]
     const tag = (t.wikimedia_commons || '').trim()
     const fromImage = /commons\.wikimedia\.org\/wiki\/(File:[^?#]+)/.exec(t.image || '')
-    p.file = /^File:/i.test(tag) ? tag : fromImage ? decodeURIComponent(fromImage[1]).replace(/_/g, ' ') : wd[t.wikidata]?.image ? `File:${wd[t.wikidata].image}` : null
-    p.category = /^Category:/i.test(tag) ? tag : wd[t.wikidata]?.category ? `Category:${wd[t.wikidata].category}` : null
+    p.file = /^File:/i.test(tag) ? tag : fromImage ? decodeURIComponent(fromImage[1]).replace(/_/g, ' ') : wd?.image ? `File:${wd.image}` : null
+    p.category = /^Category:/i.test(tag) ? tag : wd?.category ? `Category:${wd.category}` : null
   }
 
   // A place with only a category gets the first photo in it.
   for (const p of places.filter((x) => !x.file && x.category)) {
-    try {
-      const res = await commonsApi({ action: 'query', list: 'categorymembers', cmtitle: p.category, cmtype: 'file', cmlimit: '5' })
-      const first = (res.query?.categorymembers || []).find((m) => /\.(jpe?g|png|webp)$/i.test(m.title))
-      if (first) p.file = first.title
-    } catch (e) {
-      console.warn(`Category ${p.category}: ${e.message}`)
+    if (!fresh(cache.cat[p.category])) {
+      try {
+        const res = await commonsApi({ action: 'query', list: 'categorymembers', cmtitle: p.category, cmtype: 'file', cmlimit: '5' })
+        asked++
+        const first = (res.query?.categorymembers || []).find((m) => /\.(jpe?g|png|webp)$/i.test(m.title))
+        cache.cat[p.category] = { file: first ? first.title : null, t: stamp }
+      } catch (e) {
+        console.warn(`Category ${p.category}: ${e.message}`)
+      }
     }
+    if (cache.cat[p.category]?.file) p.file = cache.cat[p.category].file
   }
 
   const files = [...new Set(places.map((p) => p.file).filter(Boolean))]
-  const info = {}
-  for (let i = 0; i < files.length; i += 40) {
+  const askF = files.filter((f) => !fresh(cache.files[f]))
+  for (let i = 0; i < askF.length; i += 40) {
+    const batch = askF.slice(i, i + 40)
     try {
       const res = await commonsApi({
-        action: 'query', prop: 'imageinfo', titles: files.slice(i, i + 40).join('|'),
+        action: 'query', prop: 'imageinfo', titles: batch.join('|'),
         iiprop: 'url|extmetadata|size', iiurlwidth: '500', iiextmetadatafilter: 'Artist|LicenseShortName|LicenseUrl',
       })
+      asked++
       const norm = Object.fromEntries((res.query?.normalized || []).map((n) => [n.to, n.from]))
+      const found = {}
       for (const page of res.query?.pages || []) {
         const ii = page.imageinfo?.[0]
         if (!ii?.thumburl) continue
@@ -262,14 +327,18 @@ async function addPhotos(places) {
           licence, licenceUrl: meta.LicenseUrl?.value || null,
           page: ii.descriptionurl,
         }
-        info[page.title] = record
-        if (norm[page.title]) info[norm[page.title]] = record
+        found[page.title] = record
+        if (norm[page.title]) found[norm[page.title]] = record
       }
+      // Files with no usable photo are remembered too, so they aren't asked about every week.
+      for (const f of batch) cache.files[f] = { photo: found[f] || found[f.replace(/_/g, ' ')] || null, t: stamp }
     } catch (e) {
       console.warn(`Photo batch ${i}: ${e.message}`)
     }
   }
-  for (const p of places) p.photo = p.file ? info[p.file] || info[p.file.replace(/_/g, ' ')] || null : null
+  for (const p of places) p.photo = p.file ? cache.files[p.file]?.photo || cache.files[p.file.replace(/_/g, ' ')]?.photo || null : null
+  trail.push(`photos: ${asked} requests to Wikimedia (${askQ.length} new Wikidata items, ${askF.length} new files)`)
+  writeFileSync(PHOTO_CACHE, JSON.stringify(cache))
 }
 
 // ---------- dog rules ----------
@@ -283,69 +352,72 @@ function dogRulesFor(name, rules) {
 
 async function main() {
   if (!input || !existsSync(input)) throw new Error(`No input file (--input). Got: ${input}`)
-  const features = readFeatures(input)
-  report.features = features.length
-  trail.push(`read ${features.length} features from ${input}`)
+  const started = Date.now()
   const dogRules = JSON.parse(readFileSync('data/dog-rules-goteborg.json', 'utf8'))
 
-  // Facilities
-  const pt = (e) => { const sh = shape(e.geometry); return sh ? { lat: sh.lat, lon: sh.lon } : null }
+  // One pass through the file: facilities become points, places keep only what we need.
   const closed = (t) => /^(private|no|customers)$/.test(t.access || '')
-  const toilets = []
-  const water = []
-  const shelters = []
-  const benches = []
-  const dogParks = []
-  for (const e of features) {
-    const t = e.tags
-    if (!(t.amenity === 'toilets' || t.amenity === 'drinking_water' || t.amenity === 'shelter' || t.amenity === 'bench' || t.leisure === 'dog_park') || closed(t)) continue
-    const p = pt(e)
-    if (!p) continue
-    if (t.amenity === 'toilets') toilets.push({ ...p, fee: t.fee === 'yes' })
-    else if (t.amenity === 'drinking_water') water.push(p)
-    else if (t.amenity === 'shelter') shelters.push(p)
-    else if (t.amenity === 'bench') benches.push(p)
-    else if (t.leisure === 'dog_park') dogParks.push({ ...p, name: t.name || null, fenced: t.barrier === 'fence' || t.fenced === 'yes', osm: `${e.type}/${e.id}` })
-  }
-
-  // Places
+  const toilets = [], water = [], shelters = [], benches = [], dogParks = []
   let places = []
-  for (const e of features) {
+  let count = 0
+  for await (const e of readFeatures(input)) {
+    count++
     const t = e.tags
+    const isFacility = t.amenity === 'toilets' || t.amenity === 'drinking_water' || t.amenity === 'shelter' || t.amenity === 'bench' || t.leisure === 'dog_park'
+    if (isFacility && !closed(t)) {
+      const sh = shape(e.geometry)
+      if (sh) {
+        const p = { lat: sh.lat, lon: sh.lon }
+        if (t.amenity === 'toilets') toilets.push({ ...p, fee: t.fee === 'yes' })
+        else if (t.amenity === 'drinking_water') water.push(p)
+        else if (t.amenity === 'shelter') shelters.push(p)
+        else if (t.amenity === 'bench') benches.push(p)
+        else dogParks.push({ ...p, name: t.name || null, fenced: t.barrier === 'fence' || t.fenced === 'yes', osm: `${e.type}/${e.id}` })
+      }
+    }
     const kind = kindOf(t)
     if (!kind || !t.name || !keep(t, kind)) continue
-    const s = shape(e.geometry)
-    if (!s) continue
-    const ha = s.m2 != null ? s.m2 / 10000 : null
+    const sh = shape(e.geometry)
+    if (!sh) continue
+    const ha = sh.m2 != null ? sh.m2 / 10000 : null
     // A point-only park (no outline mapped) is still a park; give it no size.
-    places.push({ e, tags: t, kind, ...s, ha })
+    places.push({ e: { type: e.type, id: e.id }, tags: t, kind, ...sh, ha })
   }
+  report.features = count
+  trail.push(`read ${count} features from ${input}`)
 
   // The same spot is often mapped twice (a beach and its bathing place, a park and its reserve).
   // Keep one per name within 400 m: the one with an area, then the larger.
   places.sort((a, b) => (b.ha ?? -1) - (a.ha ?? -1))
+  const byName = new Map()
   const kept = []
   for (const p of places) {
-    const twin = kept.find((k) => k.tags.name.toLowerCase() === p.tags.name.toLowerCase() && metres(k, p) < 400)
+    const key = p.tags.name.toLowerCase()
+    const same = byName.get(key) || []
+    const twin = same.find((k) => metres(k, p) < 400)
     if (twin) {
-      for (const key of ['wikidata', 'wikimedia_commons', 'image', 'website']) if (!twin.tags[key] && p.tags[key]) twin.tags[key] = p.tags[key]
+      for (const k of ['wikidata', 'wikimedia_commons', 'image', 'website']) if (!twin.tags[k] && p.tags[k]) twin.tags[k] = p.tags[k]
       continue
     }
+    same.push(p)
+    byName.set(key, same)
     kept.push(p)
   }
   places = kept
+  trail.push(`${places.length} places after merging twins`)
 
   if (withPhotos && !test) await addPhotos(places)
 
+  const gT = grid(toilets), gW = grid(water), gS = grid(shelters), gB = grid(benches)
   const round = (x) => Math.round(x * 1e5) / 1e5
   const out = places.map((p) => {
     const t = p.tags
-    const dog = dogRulesFor(t.name, dogRules)
+    const dog = inBox(p, LOCAL_DOG_AREA) ? dogRulesFor(t.name, dogRules) : null
     const nearby = {
-      toilet: toilets.some((x) => near(x, p, NEAR_M)),
-      water: water.some((x) => near(x, p, NEAR_M)),
-      shelter: shelters.some((x) => near(x, p, NEAR_M / 2)) || t.leisure === 'library' || t.amenity === 'library',
-      benches: benches.some((x) => near(x, p, 30)),
+      toilet: anyNear(gT, p, NEAR_M),
+      water: anyNear(gW, p, NEAR_M),
+      shelter: anyNear(gS, p, NEAR_M / 2) || t.leisure === 'library' || t.amenity === 'library',
+      benches: anyNear(gB, p, 30),
     }
     const commonsCategory = p.category ? `https://commons.wikimedia.org/wiki/${encodeURIComponent(p.category.replace(/ /g, '_'))}` : null
     return {
@@ -367,43 +439,59 @@ async function main() {
     }
   })
 
-  const data = {
-    generated: new Date().toISOString(),
+  // Split everything into squares. A place, toilet or dog run belongs to the square its marker is in.
+  const cells = new Map()
+  const cell = (lat, lon) => {
+    const k = cellOf(lat, lon)
+    if (!cells.has(k)) cells.set(k, { places: [], toilets: [], water: [], dogParks: [] })
+    return cells.get(k)
+  }
+  for (const p of out) cell(p.lat, p.lon).places.push(p)
+  for (const x of toilets) cell(x.lat, x.lon).toilets.push([round(x.lat), round(x.lon), x.fee ? 1 : 0])
+  for (const x of water) cell(x.lat, x.lon).water.push([round(x.lat), round(x.lon)])
+  for (const x of dogParks) cell(x.lat, x.lon).dogParks.push({ ...x, lat: round(x.lat), lon: round(x.lon) })
+
+  const counts = {
+    places: out.length,
+    bySetting: out.reduce((m, p) => ((m[p.setting] = (m[p.setting] || 0) + 1), m), {}),
+    withPhoto: out.filter((p) => p.photo).length,
+    // Places still without a photo after Commons (OSM tags) and Wikidata (P18 / P373); they show the placeholder.
+    withoutPhoto: out.filter((p) => !p.photo).length,
+    withoutPhotoBySetting: out.filter((p) => !p.photo).reduce((m, p) => ({ ...m, [p.setting]: (m[p.setting] || 0) + 1 }), {}),
+    toilets: toilets.length, water: water.length, dogParks: dogParks.length, squares: cells.size,
+  }
+  const generated = new Date().toISOString()
+  const index = {
+    generated,
     area: AREA,
-    counts: {
-      places: out.length,
-      bySetting: out.reduce((m, p) => ((m[p.setting] = (m[p.setting] || 0) + 1), m), {}),
-      withPhoto: out.filter((p) => p.photo).length,
-      // Places still without a photo after Commons (OSM tags) and Wikidata (P18 / P373); they show the placeholder.
-      withoutPhoto: out.filter((p) => !p.photo).length,
-      withoutPhotoBySetting: out.filter((p) => !p.photo).reduce((m, p) => ({ ...m, [p.setting]: (m[p.setting] || 0) + 1 }), {}),
-      toilets: toilets.length, water: water.length, dogParks: dogParks.length,
-    },
-    places: out.sort((a, b) => a.name.localeCompare(b.name, 'sv')),
-    toilets: toilets.map((x) => [round(x.lat), round(x.lon), x.fee ? 1 : 0]),
-    water: water.map((x) => [round(x.lat), round(x.lon)]),
-    dogParks: dogParks.map((x) => ({ ...x, lat: round(x.lat), lon: round(x.lon) })),
+    cell: CELL,
+    localDogArea: LOCAL_DOG_AREA,
+    counts,
+    // How many places each square holds, so the app knows which squares exist.
+    cells: Object.fromEntries([...cells].sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => [k, v.places.length])),
     dogRules,
   }
 
   for (const l of LANDMARKS) report.landmarks[l] = out.some((p) => p.name.toLowerCase().includes(l.toLowerCase()))
-  report.counts = data.counts
+  report.counts = counts
+  report.seconds = Math.round((Date.now() - started) / 1000)
   const missing = Object.entries(report.landmarks).filter(([, ok]) => !ok).map(([l]) => l)
   writeReport()
-  if (!test && missing.length > 2) {
-    console.error(`Landmarks missing: ${missing.join(', ')}. Not replacing the data file.`)
+  if (!test && missing.length > 3) {
+    console.error(`Landmarks missing: ${missing.join(', ')}. Not replacing the data.`)
     process.exit(1)
   }
 
-  // Sanity check: never replace a good file with a broken week.
-  if (!test && existsSync(OUT)) {
-    const old = JSON.parse(readFileSync(OUT, 'utf8'))
-    if (old.counts?.places > 50 && out.length < old.counts.places * 0.6) {
-      console.error(`Only ${out.length} places this week (was ${old.counts.places}). Keeping last week's file.`)
+  // Sanity check: never replace good data with a broken week.
+  const dir = test ? 'data/sample' : OUT_DIR
+  if (!test && existsSync(`${dir}/index.json`)) {
+    const old = JSON.parse(readFileSync(`${dir}/index.json`, 'utf8'))
+    if (old.counts?.places > 500 && out.length < old.counts.places * 0.8) {
+      console.error(`Only ${out.length} places this week (was ${old.counts.places}). Keeping last week's data.`)
       process.exit(1)
     }
   }
-  if (out.length < (test ? 1 : 50)) {
+  if (out.length < (test ? 1 : 1000)) {
     console.error(`Only ${out.length} places found. Not writing.`)
     process.exit(1)
   }
@@ -411,8 +499,18 @@ async function main() {
   const unmatched = dogRules.local.filter((r) => !out.some((p) => p.dogRule === r.id)).map((r) => r.id)
   if (unmatched.length) console.warn(`Dog rules with no matching place on the map: ${unmatched.join(', ')}`)
 
-  writeFileSync(test ? 'data/sample.json' : OUT, JSON.stringify(data))
-  console.log(JSON.stringify(data.counts, null, 1))
+  // Write into a fresh folder, then swap it in, so squares that emptied out don't linger.
+  const tmp = `${dir}.new`
+  rmSync(tmp, { recursive: true, force: true })
+  mkdirSync(tmp, { recursive: true })
+  for (const [k, v] of cells) {
+    v.places.sort((a, b) => a.name.localeCompare(b.name, 'sv'))
+    writeFileSync(`${tmp}/${k}.json`, JSON.stringify(v))
+  }
+  writeFileSync(`${tmp}/index.json`, JSON.stringify(index))
+  rmSync(dir, { recursive: true, force: true })
+  renameSync(tmp, dir)
+  console.log(JSON.stringify({ ...counts, seconds: report.seconds }, null, 1))
 }
 
 main().catch((e) => {
