@@ -42,6 +42,18 @@ Dog rules ─────┘   (commits the file; Vercel redeploys)             
 
 Places without a photo show a word in brackets, like `[forest]`, until person-made symbols exist.
 
+## Theme: Auto / Light / Dark (shared Ellenial pattern)
+
+`site/ellenial-theme.js` is a small, dependency-free file meant to be copied unchanged into every Ellenial app. It gives a one-tap Auto / Light / Dark switch (in the footer here, next to EN | SV), saved on the phone only in `localStorage` (key `ellenial:theme`; Auto stores nothing). No account, nothing sent anywhere.
+
+- Loaded in `<head>` before the stylesheet, so there is no flash of the wrong colours.
+- Sets `data-theme="light|dark"` on `<html>`; CSS keeps dark colours under `:root[data-theme="dark"]`, with the same block under `prefers-color-scheme` for visitors without JavaScript.
+- Updates the browser bar colour, follows the phone live while on Auto, and syncs between open tabs.
+- Things drawn outside CSS listen with `EllenialTheme.onChange()`; here the map swaps to its dark or light style.
+- For testing: `?theme=light`, `?theme=dark` or `?theme=auto` in the address. It applies to that visit only and is never saved.
+
+The header of the file has the five steps for adding it to another app.
+
 ## Build locally
 
 ```

@@ -12,8 +12,16 @@
   --serif: 'Fraunces', Georgia, serif; --sans: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   color-scheme: light dark;
 }
+/* Dark: chosen with the theme switch (ellenial-theme.js sets data-theme on <html>),
+   or following the phone when JavaScript is off. Keep the two blocks identical. */
+:root[data-theme="dark"] {
+    --bg: #17141F; --surface: #221E2C; --soft: #2D2640; --line: #332D40; --line-strong: #4A4259;
+    --ink: #F3EEF8; --muted: #C2BACF; --brand: #B39AE8; --accent: #B39AE8; --on-accent: #1A1430; --accent-ink: #B39AE8;
+    --green-bg: #31423A; --green-ink: #BFD8C2; --blue-bg: #2E3E48; --blue-ink: #C9D4E0; --warn-bg: #3A2623; --warn-ink: #E59A91;
+    --place: #B39AE8; --dog: #C7B4F0; --season: #8E63B3;
+  }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
     --bg: #17141F; --surface: #221E2C; --soft: #2D2640; --line: #332D40; --line-strong: #4A4259;
     --ink: #F3EEF8; --muted: #C2BACF; --brand: #B39AE8; --accent: #B39AE8; --on-accent: #1A1430; --accent-ink: #B39AE8;
     --green-bg: #31423A; --green-ink: #BFD8C2; --blue-bg: #2E3E48; --blue-ink: #C9D4E0; --warn-bg: #3A2623; --warn-ink: #E59A91;
@@ -152,6 +160,10 @@ button { font: inherit; color: inherit; }
 .langs { display: inline-flex; gap: 2px; align-items: center; }
 .lang { border: none; background: none; padding: 6px 4px; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; }
 .lang[aria-pressed="true"] { color: var(--ink); text-decoration: underline; }
+.footer__prefs { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0 10px; margin-top: 2px; font-size: 12px; color: var(--muted); }
+.theme-switch { display: inline-flex; gap: 2px; align-items: center; }
+.theme-switch__btn { border: none; background: none; min-height: 32px; padding: 6px 4px; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.theme-switch__btn[aria-pressed="true"] { color: var(--ink); text-decoration: underline; }
 .status { padding-top: 40vh; text-align: center; color: var(--muted); }
 .note { position: fixed; left: 16px; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); max-width: 560px; margin: 0 auto; padding: 12px 16px; border-radius: 14px; background: var(--ink); color: var(--bg); font-size: 14px; z-index: 10; }
 
