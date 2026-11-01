@@ -42,6 +42,12 @@ const withPhotos = !args.includes('--no-photos')
 // A deliberate change of rules (like dropping plain hills) is allowed to shrink the data once.
 const allowDrop = args.includes('--allow-drop')
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+// Progress lines with the time since start, so the job log shows where the time goes.
+const T0 = Date.now()
+const log = (msg) => console.log(`[${((Date.now() - T0) / 60000).toFixed(1)} min] ${msg}`)
+// The photo step gets at most this long; whatever isn't asked this week is asked next week.
+// Keeps the whole job well inside its 60-minute limit even when Wikimedia is slow.
+const PHOTO_BUDGET_MS = 25 * 60000
 // What happened, written to data/report.json so problems are visible in the repo.
 const trail = []
 const report = { generated: new Date().toISOString(), source: 'Geofabrik Sweden extract (OpenStreetMap)', features: 0, landmarks: {}, trail }
@@ -53,11 +59,12 @@ const LANDMARKS = ['Slottsskogen', 'Delsjö', 'botaniska trädgård', 'Keillers 
 
 // ---------- fetching (photos only) ----------
 
-async function getJson(url, tries = 3) {
+async function getJson(url, tries = 3, timeoutMs = 30000) {
   let lastError
   for (let i = 0; i < tries; i++) {
     try {
-      const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' } })
+      // Never wait for ever on one answer.
+      const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' }, signal: AbortSignal.timeout(timeoutMs) })
       if (!res.ok) throw new Error(`${res.status} from ${new URL(url).host}`)
       return await res.json()
     } catch (e) {
@@ -287,7 +294,8 @@ async function wikidataPhotos() {
     const query = `SELECT ?name ?image ?coord WHERE { ?item wdt:P17 wd:Q34; wdt:P31/wdt:P279* wd:${q}; wdt:P18 ?image; wdt:P625 ?coord; rdfs:label ?name. FILTER(LANG(?name) = "sv") }`
     try {
       await sleep(1000)
-      const res = await getJson(`${WDQS}?${new URLSearchParams({ query, format: 'json' })}`)
+      if (outOfTime()) { trail.push(`wikidata ${label}: skipped, out of time`); continue }
+      const res = await getJson(`${WDQS}?${new URLSearchParams({ query, format: 'json' })}`, 1, 70000)
       for (const b of res.results?.bindings || []) {
         const m = /Point\(([-\d.]+) ([-\d.]+)\)/.exec(b.coord?.value || '')
         if (!m) continue
@@ -298,6 +306,7 @@ async function wikidataPhotos() {
         out.get(key).push({ lat: +m[2], lon: +m[1], image })
       }
       trail.push(`wikidata ${label}: ${res.results?.bindings?.length ?? 0} with photos`)
+      log(`Wikidata ${label}: ${res.results?.bindings?.length ?? 0} with photos`)
     } catch (e) {
       console.warn(`Wikidata query (${label}): ${e.message}`)
       trail.push(`wikidata ${label}: failed (${String(e.message).slice(0, 80)})`)
@@ -306,8 +315,14 @@ async function wikidataPhotos() {
   return out
 }
 
+let photoStart = 0
+const outOfTime = () => Date.now() - photoStart > PHOTO_BUDGET_MS
+
 async function addPhotos(places) {
+  photoStart = Date.now()
+  log(`photos: start`)
   const cache = loadCache()
+  const save = () => writeFileSync(PHOTO_CACHE, JSON.stringify(cache))
   const stamp = new Date().toISOString().slice(0, 10)
   let asked = 0
 
@@ -315,6 +330,7 @@ async function addPhotos(places) {
   const qids = [...new Set(places.map((p) => p.tags.wikidata).filter((q) => /^Q\d+$/.test(q || '')))]
   const askQ = qids.filter((q) => !fresh(cache.wd[q]))
   for (let i = 0; i < askQ.length; i += 50) {
+    if (outOfTime()) break
     const batch = askQ.slice(i, i + 50)
     try {
       const url = `${WIKIDATA}?${new URLSearchParams({ action: 'wbgetentities', ids: batch.join('|'), props: 'claims', format: 'json' })}`
@@ -340,9 +356,12 @@ async function addPhotos(places) {
     p.category = /^Category:/i.test(tag) ? tag : wd?.category ? `Category:${wd.category}` : null
   }
 
+  log(`photos: Wikidata items done (${askQ.length} asked)`)
+  save()
+
   // A place with only a category gets the first photo in it.
   for (const p of places.filter((x) => !x.file && x.category)) {
-    if (!fresh(cache.cat[p.category])) {
+    if (!fresh(cache.cat[p.category]) && !outOfTime()) {
       try {
         const res = await commonsApi({ action: 'query', list: 'categorymembers', cmtitle: p.category, cmtype: 'file', cmlimit: '5' })
         asked++
@@ -357,6 +376,8 @@ async function addPhotos(places) {
 
   // Places in Sweden on Wikidata that have a photo, matched by name and location. Many reserves,
   // parks and beaches have a Wikidata entry with a photo that OpenStreetMap doesn't link to.
+  log(`photos: categories done`)
+  save()
   const wdPhotos = await wikidataPhotos()
   if (wdPhotos.size) {
     let hits = 0
@@ -375,8 +396,9 @@ async function addPhotos(places) {
   for (const p of todo) {
     const key = `${p.e.type}/${p.e.id}`
     let entry = cache.geo?.[key]
-    if (!fresh(entry) && geoAsked < GEO_PER_RUN) {
+    if (!fresh(entry) && geoAsked < GEO_PER_RUN && !outOfTime()) {
       geoAsked++
+      if (geoAsked % 250 === 0) { log(`photos: ${geoAsked} nearby lookups`); save() }
       try {
         const radius = Math.round(Math.min(2000, Math.max(100, p.m2 ? Math.sqrt(p.m2) / 2 : 100)))
         const res = await commonsApi({ action: 'query', list: 'geosearch', gscoord: `${p.lat}|${p.lon}`, gsradius: String(radius), gsnamespace: '6', gslimit: '30' })
@@ -393,6 +415,8 @@ async function addPhotos(places) {
     }
     if (entry?.file) { p.file = entry.file; p.photoVia = 'nearby'; geoHits++ }
   }
+  log(`photos: nearby done (${geoAsked} lookups, ${geoHits} found)`)
+  save()
   trail.push(`photos: ${geoHits} from photos taken at the place (${geoAsked} new lookups, ${todo.length - geoAsked} places still to check in later weeks)`)
 
   const files = [...new Set(places.map((p) => p.file).filter(Boolean))]
@@ -429,9 +453,11 @@ async function addPhotos(places) {
       console.warn(`Photo batch ${i}: ${e.message}`)
     }
   }
+  log(`photos: licence check done (${askF.length} files)`)
   for (const p of places) p.photo = p.file ? cache.files[p.file]?.photo || cache.files[p.file.replace(/_/g, ' ')]?.photo || null : null
   trail.push(`photos: ${asked} requests to Wikimedia (${askQ.length} new Wikidata items, ${askF.length} new files)`)
-  writeFileSync(PHOTO_CACHE, JSON.stringify(cache))
+  if (outOfTime()) trail.push('photos: stopped early to stay inside the time limit; the rest is asked next week')
+  save()
 }
 
 // ---------- dog rules ----------
@@ -479,6 +505,7 @@ async function main() {
   }
   report.features = count
   trail.push(`read ${count} features from ${input}`)
+  log(`read ${count} features`)
 
   // The same spot is often mapped twice (a beach and its bathing place, a park and its reserve).
   // Keep one per name within 400 m: the one with an area, then the larger.
@@ -501,6 +528,7 @@ async function main() {
   trail.push(`${places.length} places after merging twins`)
 
   if (withPhotos && !test) await addPhotos(places)
+  log(`photos done, writing map squares`)
 
   const gT = grid(toilets), gW = grid(water), gS = grid(shelters), gB = grid(benches)
   const round = (x) => Math.round(x * 1e5) / 1e5
