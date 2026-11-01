@@ -1,31 +1,34 @@
 @font-face { font-family: 'Fraunces'; font-weight: 500; font-display: swap; src: url('/fonts/fraunces-latin-500-normal.woff2') format('woff2'); }
-@font-face { font-family: 'Instrument Sans'; font-weight: 400; font-display: swap; src: url('/fonts/instrument-sans-latin-400-normal.woff2') format('woff2'); }
-@font-face { font-family: 'Instrument Sans'; font-weight: 500; font-display: swap; src: url('/fonts/instrument-sans-latin-500-normal.woff2') format('woff2'); }
-@font-face { font-family: 'Instrument Sans'; font-weight: 600; font-display: swap; src: url('/fonts/instrument-sans-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'DM Sans'; font-weight: 400; font-display: swap; src: url('/fonts/dm-sans-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'DM Sans'; font-weight: 500; font-display: swap; src: url('/fonts/dm-sans-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'DM Sans'; font-weight: 600; font-display: swap; src: url('/fonts/dm-sans-latin-600-normal.woff2') format('woff2'); }
 
-/* The official Ellenial colours, the same set as ellenial.app and Gillefeeling. */
+/* The Ellenial brand (final, 1 Nov 2026): one palette and Fraunces + DM Sans for ellenial.app and
+   every app. Accessibility rules: never colour alone, text 4.5:1, controls and icons 3:1.
+   --line is decorative only; anything you can tap uses --edge (3:1 or more on page, card and lavender).
+   --peri (Periwinkle) is a fill for selected and active things, never text. */
 :root {
-  --bg: #FEF2E2; --surface: #FFFBF5; --soft: #F1EAF8; --line: #EDE1D1; --line-strong: #D6C8B6;
+  --bg: #FEF2E2; --surface: #FFFBF5; --soft: #F1EAF8; --line: #EDE1D1; --line-strong: #D6C8B6; --edge: #8A8299; --peri: #B7B1E6; --on-peri: #1F1A2E;
   --ink: #1F1A2E; --muted: #575166; --brand: #342E86; --accent: #342E86; --on-accent: #FFFFFF; --accent-ink: #342E86;
   --green-bg: #D5E3D6; --green-ink: #2F5A3D; --blue-bg: #D3E2EC; --blue-ink: #2E4757; --warn-bg: #F5E3E0; --warn-ink: #A2433B;
-  --place: #342E86; --toilet: #4F6676; --water: #2F82B0; --dog: #8E63B3; --season: #B39AE8;
-  --serif: 'Fraunces', Georgia, serif; --sans: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --place: #342E86; --toilet: #4F6676; --water: #2F82B0; --dog: #8E63B3; --on-dog: #FFFFFF; --season: #B39AE8;
+  --serif: 'Fraunces', Georgia, serif; --sans: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   color-scheme: light dark;
 }
 /* Dark: chosen with the theme switch (ellenial-theme.js sets data-theme on <html>),
    or following the phone when JavaScript is off. Keep the two blocks identical. */
 :root[data-theme="dark"] {
-    --bg: #17141F; --surface: #221E2C; --soft: #2D2640; --line: #332D40; --line-strong: #4A4259;
+    --bg: #17141F; --surface: #221E2C; --soft: #2D2640; --line: #332D40; --line-strong: #4A4259; --edge: #7D7393; --peri: #463C6E; --on-peri: #F3EEF8;
     --ink: #F3EEF8; --muted: #C2BACF; --brand: #B39AE8; --accent: #B39AE8; --on-accent: #1A1430; --accent-ink: #B39AE8;
     --green-bg: #31423A; --green-ink: #BFD8C2; --blue-bg: #2E3E48; --blue-ink: #C9D4E0; --warn-bg: #3A2623; --warn-ink: #E59A91;
-    --place: #B39AE8; --dog: #C7B4F0; --season: #8E63B3;
+    --place: #B39AE8; --dog: #C7B4F0; --on-dog: #1A1430; --season: #8E63B3;
   }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
-    --bg: #17141F; --surface: #221E2C; --soft: #2D2640; --line: #332D40; --line-strong: #4A4259;
+    --bg: #17141F; --surface: #221E2C; --soft: #2D2640; --line: #332D40; --line-strong: #4A4259; --edge: #7D7393; --peri: #463C6E; --on-peri: #F3EEF8;
     --ink: #F3EEF8; --muted: #C2BACF; --brand: #B39AE8; --accent: #B39AE8; --on-accent: #1A1430; --accent-ink: #B39AE8;
     --green-bg: #31423A; --green-ink: #BFD8C2; --blue-bg: #2E3E48; --blue-ink: #C9D4E0; --warn-bg: #3A2623; --warn-ink: #E59A91;
-    --place: #B39AE8; --dog: #C7B4F0; --season: #8E63B3;
+    --place: #B39AE8; --dog: #C7B4F0; --on-dog: #1A1430; --season: #8E63B3;
   }
 }
 
@@ -51,23 +54,27 @@ button { font: inherit; color: inherit; }
 
 /* chips and buttons */
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.chip { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1.5px solid var(--line-strong); background: transparent; font-size: 15px; font-weight: 600; cursor: pointer; text-decoration: none; }
-.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-.chip--more { background: var(--soft); border-color: var(--soft); }
+.chip { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1.5px solid var(--edge); background: transparent; font-size: 15px; font-weight: 600; cursor: pointer; text-decoration: none; }
+.chip[aria-pressed="true"] { background: var(--peri); border-color: var(--accent); color: var(--on-peri); }
+/* A tick as well as the fill, so "selected" never rests on colour alone. */
+.chip[aria-pressed="true"]::before { content: ''; flex: none; width: 14px; height: 14px; margin-left: -3px; background: currentColor;
+  -webkit-mask: var(--tick) center / contain no-repeat; mask: var(--tick) center / contain no-repeat; }
+:root { --tick: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E"); }
+.chip--more { background: var(--soft); border-color: var(--edge); }
 .badge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 12px; display: inline-flex; align-items: center; justify-content: center; }
 .pill-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 0 18px; border-radius: 999px; border: none; background: var(--accent); color: var(--on-accent); text-decoration: none; font-size: 15px; font-weight: 600; cursor: pointer; }
 .pill-btn--soft { background: var(--soft); color: var(--ink); }
 .pill-btn--wide { width: 100%; min-height: 52px; font-size: 16px; }
 .round-btn { width: 44px; height: 44px; flex: none; border-radius: 50%; background: var(--soft); display: inline-flex; align-items: center; justify-content: center; color: var(--ink); }
 
-.dog-switch { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 6px 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; font-weight: 600; cursor: pointer; }
+.dog-switch { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 6px 0 12px; border-radius: 999px; border: 1.5px solid var(--edge); background: var(--surface); font-size: 13px; font-weight: 600; cursor: pointer; }
 .dog-switch--row { width: 100%; justify-content: space-between; min-height: 60px; padding: 0 16px; border-radius: 16px; margin-top: 24px; text-align: left; }
 .dog-switch__text { display: flex; flex-direction: column; gap: 2px; }
 .dog-switch__label { font-size: 15px; }
 .dog-switch__hint { font-size: 13px; font-weight: 400; color: var(--muted); }
-.switch { width: 38px; height: 24px; flex: none; border-radius: 999px; background: var(--line-strong); position: relative; transition: background .2s; }
-.switch__knob { position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .2s; }
-[aria-pressed="true"] > .switch { background: var(--place); }
+.switch { width: 38px; height: 24px; flex: none; border-radius: 999px; background: var(--edge); position: relative; transition: background .2s; }
+.switch__knob { position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--surface); transition: transform .2s; }
+[aria-pressed="true"] > .switch { background: var(--accent); }
 [aria-pressed="true"] > .switch .switch__knob { transform: translateX(14px); }
 
 /* map */
@@ -75,9 +82,10 @@ button { font: inherit; color: inherit; }
 .map--off { display: none; }
 .legend { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 12px; font-weight: 600; color: var(--muted); }
 .legend__item { display: inline-flex; align-items: center; gap: 6px; }
-.dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--line-strong); }
-.dot--place { background: var(--place); } .dot--toilet { background: var(--toilet); } .dot--water { background: var(--water); } .dot--dog { background: var(--dog); }
-.near-me { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; font-weight: 600; cursor: pointer; }
+.dot { width: 18px; height: 18px; flex: none; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: #FFFFFF; box-shadow: 0 0 0 1.5px var(--surface); }
+.dot svg { width: 11px; height: 11px; }
+.dot--place { background: var(--place); } .dot--toilet { background: var(--toilet); } .dot--water { background: var(--water); } .dot--dog { background: var(--dog); color: var(--on-dog); }
+.near-me { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1.5px solid var(--edge); background: var(--surface); font-size: 13px; font-weight: 600; cursor: pointer; }
 .near-me:disabled { opacity: .7; cursor: progress; }
 .map-credit { position: absolute; top: 8px; left: 8px; z-index: 1; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--bg) 82%, transparent); color: var(--muted); font: 600 10px/1.6 var(--sans); white-space: nowrap; pointer-events: auto; }
 .map-credit a { color: inherit; text-decoration: none; }
@@ -116,7 +124,7 @@ button { font: inherit; color: inherit; }
 .group { margin-top: 24px; }
 .seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 14px; background: var(--soft); }
 .seg__btn { min-height: 42px; border: none; border-radius: 10px; background: transparent; font-weight: 600; font-size: 14px; cursor: pointer; }
-.seg__btn[aria-pressed="true"] { background: var(--surface); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.seg__btn[aria-pressed="true"] { background: var(--peri); color: var(--on-peri); box-shadow: inset 0 0 0 1.5px var(--accent); }
 .sticky-cta { position: sticky; bottom: 0; margin: 28px -16px 0; padding: 14px 16px calc(18px + env(safe-area-inset-bottom)); background: var(--bg); border-top: 1px solid var(--line); }
 
 .hero { position: relative; margin: 0 -16px; height: 260px; background: var(--soft); }
@@ -212,7 +220,7 @@ body.is-locked { overflow: hidden; overscroll-behavior: none; }
 .sheet__head { flex: none; padding: 0 16px 10px; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
 .home--list .sheet__head { touch-action: auto; cursor: auto; padding-top: 6px; }
 .sheet__handle { display: flex; justify-content: center; width: 100%; height: 26px; padding: 10px 0 0; border: none; background: none; cursor: grab; }
-.sheet__grip { width: 44px; height: 5px; border-radius: 999px; background: var(--line-strong); }
+.sheet__grip { width: 44px; height: 5px; border-radius: 999px; background: var(--edge); }
 .home--list .sheet__handle { display: none; }
 .sheet__count { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 12px; }
 .sheet__title { margin: 0; font: 500 20px/1.25 var(--serif); letter-spacing: -0.3px; }
@@ -264,4 +272,13 @@ body.is-locked { overflow: hidden; overscroll-behavior: none; }
 .dogstrip__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .dogstrip__title { font-size: 14px; font-weight: 600; line-height: 1.3; }
 .dogstrip__line { font-size: 13px; color: var(--muted); }
-.dogstrip::before { content: ''; flex: none; width: 12px; height: 12px; border-radius: 50%; background: var(--dog); box-shadow: 0 0 0 2px var(--surface); }
+
+.map-hint { position: absolute; left: 50%; top: 44px; transform: translateX(-50%); z-index: 1; padding: 6px 14px; border-radius: 999px; background: var(--ink); color: var(--bg); font-size: 13px; font-weight: 600; white-space: nowrap; }
+
+/* MapLibre's zoom buttons in the brand: card colour, a 3:1 edge, 40px targets, light icons in dark mode. */
+.maplibregl-ctrl.maplibregl-ctrl-group { background: var(--surface); border-radius: 12px; overflow: hidden; box-shadow: 0 0 0 1.5px var(--edge); }
+.maplibregl-ctrl-group button { width: 40px; height: 40px; }
+.maplibregl-ctrl-group button + button { border-top: 1px solid var(--line); }
+.maplibregl-ctrl-group button:not(:disabled):hover { background-color: var(--soft); }
+:root[data-theme="dark"] .maplibregl-ctrl-icon { filter: invert(.93); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme]) .maplibregl-ctrl-icon { filter: invert(.93); } }
