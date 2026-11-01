@@ -474,7 +474,14 @@
         transformRequest: (url) => ({ url: url.replace('https://tiles.openfreemap.org/', location.origin + '/ofm/') }),
       })
       map.addControl(new window.maplibregl.NavigationControl({ showCompass: false }), 'top-right')
-      map.addControl(new window.maplibregl.AttributionControl({ compact: true, customAttribution: '© OpenStreetMap · OpenFreeMap' }), 'top-left')
+      // A small credit line that is always visible, instead of MapLibre's "i" box. That box opens
+      // by itself on load and after a theme change (so credits are seen once), which felt like it
+      // opened unasked. A line that never hides meets OpenStreetMap's attribution rules without it.
+      const credit = h('div', { class: 'map-credit' },
+        h('a', { href: 'https://www.openstreetmap.org/copyright', rel: 'noopener noreferrer', target: '_blank' }, '© OpenStreetMap'), ' · ',
+        h('a', { href: 'https://openmaptiles.org/', rel: 'noopener noreferrer', target: '_blank' }, 'OpenMapTiles'), ' · ',
+        h('a', { href: 'https://openfreemap.org/', rel: 'noopener noreferrer', target: '_blank' }, 'OpenFreeMap'))
+      map.getContainer().append(credit)
       // Our own pins sit on top of the base map. A new theme means a new base style, which drops
       // them, so they are added again every time a style finishes loading.
       const addOwnLayers = async () => {
