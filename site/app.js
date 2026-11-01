@@ -31,7 +31,7 @@
     return s
   }
   const ICON = {
-    back: ['M15 18l-6-6 6-6'], close: ['M6 6l12 12', 'M18 6L6 18'], out: ['M7 17L17 7', 'M8 7h9v9'],
+    back: ['M15 18l-6-6 6-6'], next: ['M9 18l6-6-6-6'], close: ['M6 6l12 12', 'M18 6L6 18'], out: ['M7 17L17 7', 'M8 7h9v9'],
     filter: ['M4 6h16', 'M7 12h10', 'M10 18h4'], drop: ['M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z'],
     locate: ['M12 2v3', 'M12 19v3', 'M2 12h3', 'M19 12h3', 'M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8'],
   }
@@ -46,15 +46,15 @@
 
   const CENTRE = { lat: 57.7072, lon: 11.9668 } // Gustaf Adolfs torg
   const SETTINGS = ['nature', 'water', 'urban', 'squares', 'gardens', 'view', 'libraries']
-  const HOME_CHIPS = ['nature', 'water', 'urban', 'view']
-  const PAGE = 30
 
   const state = {
     data: null,
     filters: Object.assign({ settings: [], size: 'any', nearby: [] }, store.get('filters', {})),
     dog: store.get('dog', false) === true,
     me: null,
-    shown: PAGE,
+    view: ['both', 'map', 'list'].includes(store.get('view', 'both')) ? store.get('view', 'both') : 'both',
+    snap: ['peek', 'half', 'full'].includes(store.get('snap', 'peek')) ? store.get('snap', 'peek') : 'peek',
+    sel: null,
   }
   const saveFilters = () => store.set('filters', state.filters)
 
@@ -107,7 +107,7 @@
     const o = from()
     return state.data.places.filter(matches).map((p) => ({ p, d: metres(o, p) })).sort((a, b) => a.d - b.d)
   }
-  const activeCount = () => state.filters.settings.filter((s) => !HOME_CHIPS.includes(s)).length + (state.filters.size !== 'any' ? 1 : 0) + state.filters.nearby.length
+  const activeCount = () => (state.filters.size !== 'any' ? 1 : 0) + state.filters.nearby.length
 
   // ---------- shared bits ----------
   function dogSwitch(withHint) {
@@ -120,8 +120,19 @@
     h('span', { class: 'switch', 'aria-hidden': 'true' }, h('span', { class: 'switch__knob' })))
   }
 
+  // The setting's icon (from icons.js, our own build file) as an SVG element.
+  function settingIcon(setting, size) {
+    const inner = (window.EM_ICONS || {})[setting]
+    if (!inner) return null
+    const doc = new DOMParser().parseFromString(`<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`, 'image/svg+xml')
+    return document.importNode(doc.documentElement, true)
+  }
+
+  // No photo yet: a calm block in the setting's colour with its icon and a word in brackets.
   function placeholder(setting, cls) {
-    return h('div', { class: `placeholder placeholder--${setting} ${cls || ''}`, role: 'img', 'aria-label': t().noPhoto }, h('span', null, t().placeholders[setting]))
+    const big = /pcard__img|hero__img/.test(cls || '')
+    return h('div', { class: `placeholder placeholder--${setting} ${cls || ''}`, role: 'img', 'aria-label': t().noPhoto },
+      settingIcon(setting, big ? 28 : 20), big ? h('span', null, t().placeholders[setting]) : null)
   }
 
   // If a photo can't load, show the bracket placeholder instead of a broken image.
@@ -184,59 +195,143 @@
   }
 
   // ---------- home ----------
+  // Layout (round 2): a header with one sideways row of chips and a Both / Map / List toggle,
+  // the map filling the rest of the screen, and a pull-up panel over it with sections of
+  // sideways photo cards. Tapping a pin selects its card; tapping a card selects its pin.
   let map = null
   let mapReady = false
   let homeScroll = 0
+  let panelScroll = 0
+  const VIEWS = ['both', 'map', 'list']
+  const SNAPS = ['peek', 'half', 'full']
+  const NEARBY_M = 2000
+  const SHELF = 10
+  const mapShown = () => state.view !== 'list'
 
   function renderHome() {
     const s = t()
     const home = $('#home')
     const list = visible()
     document.title = `${s.title} · ${s.tagline}`
+    home.className = `home home--${state.view}`
 
-    fill($('#home-top'), 
+    fill($('#home-top'),
       h('div', { class: 'brandbar' }, h('p', { class: 'brand' }, s.title), dogSwitch(false)),
-      h('h1', { class: 'heading' }, s.homeHeading),
-      h('div', { class: 'chips', role: 'group', 'aria-label': s.setting },
-        HOME_CHIPS.map((key) => chip(key)),
-        h('a', { class: 'chip chip--more', href: '#/filters' }, svg(ICON.filter, 16), s.more, activeCount() ? h('span', { class: 'badge' }, activeCount()) : null)))
+      h('h1', { class: 'sr-only' }, s.homeHeading),
+      h('div', { class: 'chiprow' },
+        h('div', { class: 'chiprow__scroll', role: 'group', 'aria-label': s.setting }, SETTINGS.map((key) => chip(key))),
+        h('a', { class: 'chip chip--sm chip--more', href: '#/filters' }, svg(ICON.filter, 14), s.more, activeCount() ? h('span', { class: 'badge' }, activeCount()) : null)),
+      h('div', { class: 'toolbar' },
+        h('div', { class: 'seg seg--views', role: 'group', 'aria-label': s.view },
+          VIEWS.map((v) => h('button', { type: 'button', class: 'seg__btn', 'aria-pressed': String(state.view === v), onclick: () => setView(v) }, s.views[v]))),
+        h('button', { class: 'near-me', type: 'button', onclick: nearMe }, svg(ICON.locate, 16), s.nearMe)))
 
-    fill($('#legend'), 
-      h('span', { class: 'legend__item' }, h('span', { class: 'dot dot--place', 'aria-hidden': 'true' }), s.placesCount(list.length)),
-      h('span', { class: 'legend__item' }, h('span', { class: 'dot dot--toilet', 'aria-hidden': 'true' }), s.toilet),
-      h('span', { class: 'legend__item' }, h('span', { class: 'dot dot--water', 'aria-hidden': 'true' }), s.waterTap),
-      state.dog ? h('span', { class: 'legend__item' }, h('span', { class: 'dot dot--dog', 'aria-hidden': 'true' }), s.dogRun) : null,
-      h('button', { class: 'near-me', type: 'button', onclick: nearMe }, svg(ICON.locate, 16), s.nearMe))
+    const near = list.filter((x) => x.d <= NEARBY_M).length
+    const sel = state.sel && state.data.places.find((p) => p.id === state.sel)
+    fill($('#panel-head'),
+      h('button', { class: 'sheet__handle', type: 'button', 'aria-label': s.panelHandle, 'aria-expanded': String(state.snap !== 'peek'), onclick: () => {} }, h('span', { class: 'sheet__grip', 'aria-hidden': 'true' })),
+      sel ? selectedCard(sel, list.find((x) => x.p.id === sel.id)?.d ?? metres(from(), sel)) : null,
+      h('div', { class: 'sheet__count' },
+        h('h2', { class: 'sheet__title' }, near ? s.placesNearby(near) : s.placesCount(list.length)),
+        h('span', { class: 'legend' },
+          h('span', { class: 'legend__item' }, h('span', { class: 'dot dot--toilet', 'aria-hidden': 'true' }), s.toilet),
+          h('span', { class: 'legend__item' }, h('span', { class: 'dot dot--water', 'aria-hidden': 'true' }), s.waterTap),
+          state.dog ? h('span', { class: 'legend__item' }, h('span', { class: 'dot dot--dog', 'aria-hidden': 'true' }), s.dogRun) : null)))
 
-    const items = list.slice(0, state.shown).map(({ p, d }) => card(p, d))
-    fill($('#list'), 
-      state.dog ? dogTeaser() : null,
-      list.length ? items : h('div', { class: 'empty' }, h('p', null, s.nothingFound),
-        h('button', { class: 'pill-btn', type: 'button', onclick: () => { state.filters = { settings: [], size: 'any', nearby: [] }; saveFilters(); render() } }, s.clearFilters)),
-      list.length > state.shown ? h('button', { class: 'pill-btn pill-btn--soft show-more', type: 'button', onclick: () => { state.shown += PAGE; renderHome() } }, s.showMore) : null)
-    fill($('#home-footer'), footer())
+    const shelves = [
+      ['closest', list],
+      ['dog', list.filter(({ p }) => goodWithDog(p))],
+      ['nature', list.filter(({ p }) => p.setting === 'nature')],
+      ['indoor', list.filter(({ p }) => p.setting === 'libraries' || p.nearby.shelter)],
+    ]
+    fill($('#panel-body'),
+      state.dog ? h('div', { class: 'sheet__pad' }, dogTeaser()) : null,
+      list.length
+        ? shelves.map(([key, items]) => items.length ? shelf(s.sections[key], items.slice(0, SHELF)) : null)
+        : h('div', { class: 'empty sheet__pad' }, h('p', null, s.nothingFound),
+          h('button', { class: 'pill-btn', type: 'button', onclick: () => { state.filters = { settings: [], size: 'any', nearby: [] }; saveFilters(); render() } }, s.clearFilters)),
+      h('div', { class: 'sheet__pad' }, footer()))
+
     $('#map').setAttribute('aria-label', s.mapLabel)
-    updateMap(list)
     home.hidden = false
+    updateMap(list)
+    requestAnimationFrame(() => { applySnap(); if (map && mapShown()) map.resize() })
+  }
+
+  function setView(v) {
+    state.view = v
+    store.set('view', v)
+    if (v === 'list') state.sel = null
+    render()
   }
 
   function chip(key) {
     const on = state.filters.settings.includes(key)
     return h('button', {
-      type: 'button', class: 'chip', 'aria-pressed': String(on),
-      onclick: () => { toggle(state.filters.settings, key); saveFilters(); state.shown = PAGE; render() },
+      type: 'button', class: 'chip chip--sm', 'aria-pressed': String(on),
+      onclick: () => { toggle(state.filters.settings, key); saveFilters(); render() },
     }, t().settings[key])
   }
   const toggle = (arr, v) => { const i = arr.indexOf(v); if (i >= 0) arr.splice(i, 1); else arr.push(v) }
 
-  function card(p, d) {
+  // "Good with a dog": outdoors, no dog ban today, and room to walk (big, nature) or a dog run close by.
+  function goodWithDog(p) {
+    if (p.setting === 'libraries') return false
+    const st = dogStatus(ruleFor(p))
+    if (st && !st.allowed) return false
+    return p.size === 'big' || p.setting === 'nature' || p._dogRun <= 500
+  }
+
+  function placeImg(p, w, hgt, cls) {
+    return p.photo
+      ? photoOr(h('img', { class: cls, src: p.photo.src, alt: '', loading: 'lazy', width: w, height: hgt }), p.setting, cls)
+      : placeholder(p.setting, cls)
+  }
+
+  function shelf(title, items) {
+    return h('section', { class: 'shelf' },
+      h('h3', { class: 'shelf__title' }, title),
+      h('div', { class: 'shelf__row' }, items.map(({ p, d }) => photoCard(p, d))))
+  }
+
+  function photoCard(p, d) {
     const s = t()
-    return h('a', { class: 'card', href: `#/place/${p.id}` },
-      p.photo ? photoOr(h('img', { class: 'card__img', src: p.photo.src, alt: '', loading: 'lazy', width: 72, height: 72 }), p.setting, 'card__img') : placeholder(p.setting, 'card__img'),
-      h('div', { class: 'card__body' },
-        h('div', { class: 'card__head' }, h('span', { class: 'card__name' }, p.name), h('span', { class: 'card__dist' }, s.km(d))),
-        h('span', { class: 'card__kind' }, kicker(p)),
-        tags(p)))
+    const st = state.dog ? dogStatus(ruleFor(p)) : null
+    return h('a', {
+      class: 'pcard' + (state.sel === p.id ? ' is-selected' : ''), href: `#/place/${p.id}`, 'data-id': p.id,
+      onclick: (e) => {
+        // With the map on screen, the first tap shows the place on the map; the second opens it.
+        if (mapShown() && state.sel !== p.id) { e.preventDefault(); select(p.id, 'card') }
+      },
+    },
+    placeImg(p, 168, 112, 'pcard__img'),
+    h('span', { class: 'pcard__name' }, p.name),
+    h('span', { class: 'pcard__meta' }, `${s.km(d)} · ${t().kinds[p.kind] || t().settings[p.setting]}`),
+    st && !st.allowed ? h('span', { class: 'tag tag--warn pcard__tag' }, s.noDogsToday) : null)
+  }
+
+  function selectedCard(p, d) {
+    const s = t()
+    return h('div', { class: 'selcard' },
+      h('a', { class: 'selcard__main', href: `#/place/${p.id}` },
+        placeImg(p, 64, 64, 'selcard__img'),
+        h('span', { class: 'selcard__body' },
+          h('span', { class: 'card__kind' }, kicker(p)),
+          h('span', { class: 'card__name' }, p.name),
+          h('span', { class: 'card__dist' }, s.km(d))),
+        h('span', { class: 'selcard__open' }, s.openPlace, svg(ICON.next, 16))),
+      h('button', { class: 'selcard__close', type: 'button', 'aria-label': s.clearSelection, onclick: () => select(null) }, svg(ICON.close, 16)))
+  }
+
+  function select(id, origin) {
+    state.sel = id
+    renderHome()
+    const p = id && state.data.places.find((x) => x.id === id)
+    if (p && map && origin === 'card') {
+      const b = map.getBounds()
+      if (!b.contains([p.lon, p.lat]) || map.getZoom() < 13) map.easeTo({ center: [p.lon, p.lat], zoom: Math.max(map.getZoom(), 14), padding: { bottom: panelCover() } })
+    }
+    if (p) requestAnimationFrame(() => $(`.pcard[data-id="${CSS.escape(p.id)}"]`)?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' }))
   }
 
   function dogTeaser() {
@@ -258,9 +353,8 @@
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         state.me = { lat: pos.coords.latitude, lon: pos.coords.longitude }
-        state.shown = PAGE
         renderHome()
-        if (map) map.flyTo({ center: [state.me.lon, state.me.lat], zoom: 13 })
+        if (map && mapShown()) map.flyTo({ center: [state.me.lon, state.me.lat], zoom: 13, padding: { bottom: panelCover() } })
       },
       () => { btn.disabled = false; btn.lastChild.textContent = s.nearMe; note(s.nearMeFailed) },
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 })
@@ -274,8 +368,91 @@
     note.timer = setTimeout(() => { n.hidden = true }, 6000)
   }
 
+  // ---------- the pull-up panel ----------
+  // Three resting heights: peek (handle, selected place, count), half, full. Drag the top part,
+  // or tap the handle to go peek -> half -> full -> peek.
+  function snapY(snap) {
+    const stage = $('#stage').clientHeight
+    const peek = $('#panel-head').offsetHeight + 8
+    return snap === 'full' ? 0 : snap === 'half' ? Math.round(stage * 0.5) : Math.max(0, stage - peek)
+  }
+  function applySnap(y) {
+    const panel = $('#panel')
+    if (state.view !== 'both') { panel.style.removeProperty('--y'); return }
+    panel.dataset.snap = state.snap
+    panel.style.setProperty('--y', `${y ?? snapY(state.snap)}px`)
+    $('.sheet__handle')?.setAttribute('aria-expanded', String(state.snap !== 'peek'))
+  }
+  const panelCover = () => (state.view === 'both' ? $('#stage').clientHeight - snapY(state.snap) : 0)
+
+  function setupPanel() {
+    const head = $('#panel-head')
+    const panel = $('#panel')
+    let drag = null
+    head.addEventListener('pointerdown', (e) => {
+      if (state.view !== 'both' || e.target.closest('a, .selcard__close')) return
+      drag = { y0: e.clientY, from: snapY(state.snap), moved: false, t0: performance.now() }
+      head.setPointerCapture(e.pointerId)
+      panel.classList.add('is-dragging')
+    })
+    head.addEventListener('pointermove', (e) => {
+      if (!drag) return
+      const dy = e.clientY - drag.y0
+      if (Math.abs(dy) > 6) drag.moved = true
+      if (drag.moved) applySnap(Math.min(snapY('peek'), Math.max(0, drag.from + dy)))
+    })
+    const end = (e) => {
+      if (!drag) return
+      panel.classList.remove('is-dragging')
+      if (!drag.moved) {
+        if (e.type === 'pointerup') state.snap = SNAPS[(SNAPS.indexOf(state.snap) + 1) % SNAPS.length]
+      } else {
+        const y = drag.from + (e.clientY - drag.y0)
+        const v = (e.clientY - drag.y0) / Math.max(1, performance.now() - drag.t0) // px per ms
+        if (Math.abs(v) > 0.6) state.snap = v < 0 ? (state.snap === 'peek' ? 'half' : 'full') : (state.snap === 'full' ? 'half' : 'peek')
+        else state.snap = SNAPS.reduce((best, sn) => (Math.abs(snapY(sn) - y) < Math.abs(snapY(best) - y) ? sn : best), 'peek')
+      }
+      store.set('snap', state.snap)
+      drag = null
+      applySnap()
+    }
+    head.addEventListener('pointerup', end)
+    head.addEventListener('pointercancel', end)
+    // Keyboard: the handle is a button; Enter/Space go through the same cycle.
+    head.addEventListener('keydown', (e) => {
+      if (!e.target.classList.contains('sheet__handle') || (e.key !== 'Enter' && e.key !== ' ')) return
+      e.preventDefault()
+      state.snap = SNAPS[(SNAPS.indexOf(state.snap) + 1) % SNAPS.length]
+      store.set('snap', state.snap)
+      applySnap()
+    })
+    addEventListener('resize', () => applySnap())
+  }
+
   // ---------- the map ----------
   const isDark = () => window.EllenialTheme ? window.EllenialTheme.resolved() === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches
+
+  // Pins: a coloured disc with the setting's icon, drawn once per theme from icons.js.
+  const pinCache = {}
+  function pinImages(dark) {
+    if (pinCache[dark]) return pinCache[dark]
+    const fillC = dark ? '#B39AE8' : '#342E86', ring = dark ? '#17141F' : '#FFFFFF', ink = dark ? '#1A1430' : '#FFFFFF'
+    const S = 56 // 28 css px at pixelRatio 2
+    pinCache[dark] = Promise.all(SETTINGS.map((key) => new Promise((resolve) => {
+      const c = document.createElement('canvas'); c.width = S; c.height = S
+      const g = c.getContext('2d')
+      g.beginPath(); g.arc(S / 2, S / 2, S / 2 - 3, 0, Math.PI * 2)
+      g.fillStyle = fillC; g.fill(); g.lineWidth = 4; g.strokeStyle = ring; g.stroke()
+      const inner = (window.EM_ICONS || {})[key]
+      if (!inner) return resolve([key, g.getImageData(0, 0, S, S)])
+      const svgText = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${ink}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`
+      const img = new Image()
+      img.onload = () => { g.drawImage(img, S / 2 - 15, S / 2 - 15, 30, 30); resolve([key, g.getImageData(0, 0, S, S)]) }
+      img.onerror = () => resolve([key, g.getImageData(0, 0, S, S)])
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgText)
+    })))
+    return pinCache[dark]
+  }
 
   function initMap() {
     if (map || !window.maplibregl) return
@@ -292,15 +469,19 @@
         minZoom: 9,
         maxZoom: 18,
         attributionControl: false,
-        cooperativeGestures: true,
+        cooperativeGestures: false,
         // Tiles and fonts listed by OpenFreeMap point at its own address; send them through ours.
         transformRequest: (url) => ({ url: url.replace('https://tiles.openfreemap.org/', location.origin + '/ofm/') }),
       })
       map.addControl(new window.maplibregl.NavigationControl({ showCompass: false }), 'top-right')
-      map.addControl(new window.maplibregl.AttributionControl({ compact: true, customAttribution: '© OpenStreetMap · OpenFreeMap' }))
-      // Our own dots sit on top of the base map. A new theme means a new base style, which drops
+      map.addControl(new window.maplibregl.AttributionControl({ compact: true, customAttribution: '© OpenStreetMap · OpenFreeMap' }), 'top-left')
+      // Our own pins sit on top of the base map. A new theme means a new base style, which drops
       // them, so they are added again every time a style finishes loading.
-      const addOwnLayers = () => {
+      const addOwnLayers = async () => {
+        const forDark = dark
+        const pins = await pinImages(forDark)
+        if (forDark !== dark || map.getLayer('em-places')) return
+        for (const [key, data] of pins) if (!map.hasImage('pin-' + key)) map.addImage('pin-' + key, data, { pixelRatio: 2 })
         const empty = { type: 'FeatureCollection', features: [] }
         for (const id of ['places', 'toilets', 'water', 'dogparks', 'me']) if (!map.getSource('em-' + id)) map.addSource('em-' + id, { type: 'geojson', data: empty })
         const ink = dark ? '#17141F' : '#FFFFFF'
@@ -308,14 +489,30 @@
         map.addLayer({ id: 'em-toilets', type: 'circle', source: 'em-toilets', minzoom: 12, paint: { 'circle-radius': 4.5, 'circle-color': '#4F6676', 'circle-stroke-color': ink, 'circle-stroke-width': 1.5 } })
         map.addLayer({ id: 'em-water', type: 'circle', source: 'em-water', minzoom: 12, paint: { 'circle-radius': 4.5, 'circle-color': '#2F82B0', 'circle-stroke-color': ink, 'circle-stroke-width': 1.5 } })
         map.addLayer({ id: 'em-dogparks', type: 'circle', source: 'em-dogparks', paint: { 'circle-radius': 6, 'circle-color': dark ? '#C7B4F0' : '#8E63B3', 'circle-stroke-color': ink, 'circle-stroke-width': 2 } })
-        map.addLayer({ id: 'em-places', type: 'circle', source: 'em-places', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 4, 14, 8], 'circle-color': brand, 'circle-stroke-color': ink, 'circle-stroke-width': 2 } })
+        map.addLayer({ id: 'em-sel', type: 'circle', source: 'em-places', filter: ['==', ['get', 'id'], ''], paint: { 'circle-radius': 24, 'circle-color': brand, 'circle-opacity': 0.22, 'circle-stroke-color': brand, 'circle-stroke-width': 2.5 } })
+        map.addLayer({
+          id: 'em-places', type: 'symbol', source: 'em-places',
+          layout: {
+            'icon-image': ['concat', 'pin-', ['get', 'setting']],
+            'icon-size': ['interpolate', ['linear'], ['zoom'], 9, 0.55, 12, 0.8, 15, 1],
+            'icon-allow-overlap': true, 'icon-ignore-placement': true,
+            'symbol-sort-key': ['get', 'rank'],
+          },
+        })
         map.addLayer({ id: 'em-me', type: 'circle', source: 'em-me', paint: { 'circle-radius': 7, 'circle-color': dark ? '#F3EEF8' : '#1F1A2E', 'circle-stroke-color': dark ? '#17141F' : '#FEF2E2', 'circle-stroke-width': 3 } })
         mapReady = true
         updateMap(visible())
       }
       map.on('load', () => {
         addOwnLayers()
-        map.on('click', 'em-places', (e) => { const id = e.features[0]?.properties?.id; if (id) { internalNav = true; location.hash = `#/place/${id}` } })
+        // First tap on a pin selects it (and its card); a second tap on the same pin opens it.
+        map.on('click', (e) => {
+          if (!map.getLayer('em-places')) return
+          const f = map.queryRenderedFeatures(e.point, { layers: ['em-places'] })[0]
+          const id = f?.properties?.id
+          if (!id) { if (state.sel) select(null); return }
+          if (state.sel === id) { internalNav = true; location.hash = `#/place/${id}` } else select(id, 'pin')
+        })
         map.on('mouseenter', 'em-places', () => { map.getCanvas().style.cursor = 'pointer' })
         map.on('mouseleave', 'em-places', () => { map.getCanvas().style.cursor = '' })
         window.EllenialTheme?.onChange(({ resolved }) => {
@@ -339,31 +536,38 @@
   function updateMap(list) {
     if (!map || !mapReady) return
     const d = state.data
-    map.getSource('em-places').setData(fc(list.map((x) => x.p), (p) => ({ id: p.id })))
+    // The selected pin is drawn last so it sits on top.
+    map.getSource('em-places').setData(fc(list.map((x) => x.p), (p) => ({ id: p.id, setting: p.setting, rank: p.id === state.sel ? 1 : 0 })))
+    map.setFilter('em-sel', ['==', ['get', 'id'], state.sel || ''])
     map.getSource('em-toilets').setData(fc(d.toilets))
     map.getSource('em-water').setData(fc(d.water))
     map.getSource('em-dogparks').setData(fc(state.dog ? d.dogParks : []))
     map.getSource('em-me').setData(fc(state.me ? [state.me] : []))
   }
 
-  // ---------- filters ----------
-  function renderFilters() {
+  // ---------- filters (a sheet over the home screen) ----------
+  function renderFiltersSheet() {
     const s = t()
     const f = state.filters
     const seg = (val, label) => h('button', { type: 'button', class: 'seg__btn', 'aria-pressed': String(f.size === val), onclick: () => { f.size = val; saveFilters(); render() } }, label)
     const nearChip = (key, label) => h('button', { type: 'button', class: 'chip', 'aria-pressed': String(f.nearby.includes(key)), onclick: () => { toggle(f.nearby, key); saveFilters(); render() } }, label)
     const n = state.data.places.filter(matches).length
-    document.title = `${s.filtersHeading} · ${s.title}`
-    return h('div', { class: 'page page--filters' },
-      topBar(s.filtersHeading, true),
-      h('section', { class: 'group' }, h('h2', { class: 'label' }, s.setting),
-        h('div', { class: 'chips' }, SETTINGS.map((key) => h('button', { type: 'button', class: 'chip', 'aria-pressed': String(f.settings.includes(key)), onclick: () => { toggle(f.settings, key); saveFilters(); render() } }, s.settings[key])))),
-      h('section', { class: 'group' }, h('h2', { class: 'label' }, s.size),
-        h('div', { class: 'seg', role: 'group', 'aria-label': s.size }, seg('any', s.sizeAny), seg('small', s.sizeSmall), seg('big', s.sizeBig))),
-      h('section', { class: 'group' }, h('h2', { class: 'label' }, s.nearbyHeading),
-        h('div', { class: 'chips' }, nearChip('toilet', s.toilet), nearChip('water', s.waterTap), nearChip('benches', s.benches), nearChip('shelter', s.shelter))),
-      dogSwitch(true),
-      h('div', { class: 'sticky-cta' }, h('a', { class: 'pill-btn pill-btn--wide', href: '#/', onclick: () => { state.shown = PAGE } }, s.showPlaces(n))))
+    const close = (e) => { if (internalNav && history.length > 1) { e?.preventDefault(); history.back() } else location.hash = '#/' }
+    return h('div', { class: 'modal', onkeydown: (e) => { if (e.key === 'Escape') close() } },
+      h('div', { class: 'modal__backdrop', onclick: close }),
+      h('div', { class: 'modal__sheet', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'filters-title' },
+        h('div', { class: 'modal__head' },
+          h('h2', { id: 'filters-title', class: 'topbar__title' }, s.filtersHeading),
+          h('button', { class: 'round-btn', type: 'button', 'aria-label': s.close, onclick: close }, svg(ICON.close))),
+        h('div', { class: 'modal__body' },
+          h('section', { class: 'group' }, h('h3', { class: 'label' }, s.setting),
+            h('div', { class: 'chips' }, SETTINGS.map((key) => h('button', { type: 'button', class: 'chip', 'aria-pressed': String(f.settings.includes(key)), onclick: () => { toggle(f.settings, key); saveFilters(); render() } }, s.settings[key])))),
+          h('section', { class: 'group' }, h('h3', { class: 'label' }, s.size),
+            h('div', { class: 'seg', role: 'group', 'aria-label': s.size }, seg('any', s.sizeAny), seg('small', s.sizeSmall), seg('big', s.sizeBig))),
+          h('section', { class: 'group' }, h('h3', { class: 'label' }, s.nearbyHeading),
+            h('div', { class: 'chips' }, nearChip('toilet', s.toilet), nearChip('water', s.waterTap), nearChip('benches', s.benches), nearChip('shelter', s.shelter))),
+          dogSwitch(true)),
+        h('div', { class: 'modal__foot' }, h('button', { class: 'pill-btn pill-btn--wide', type: 'button', onclick: close }, s.showPlaces(n)))))
   }
 
   // ---------- a place ----------
@@ -492,7 +696,8 @@
         h('li', null, ext('https://openfreemap.org', s.creditTiles)),
         h('li', null, ext('https://commons.wikimedia.org', s.creditPhotos)),
         h('li', null, s.creditDogs),
-        h('li', null, s.creditCode)),
+        h('li', null, s.creditCode),
+        h('li', null, s.creditIcons)),
       h('p', null, s.codeText, ' ', ext('https://github.com/phoenixcyberpunk/ellenial-maps', 'GitHub')),
       footer())
   }
@@ -504,16 +709,24 @@
     const route = location.hash.replace(/^#\/?/, '')
     const page = $('#page')
     const [name, arg] = route.split('/')
-    if (!name) {
+    const onHome = !name || name === 'filters'
+    // In the Both view the map and panel fill the screen, so the page itself doesn't scroll.
+    document.body.classList.toggle('is-locked', onHome && state.view === 'both')
+    if (onHome) {
+      const wasAway = $('#home').hidden
       page.hidden = true
       fill(page)
       renderHome()
-      if (map) requestAnimationFrame(() => map.resize())
+      if (wasAway) requestAnimationFrame(() => { $('#panel-body').scrollTop = panelScroll })
+      fill($('#sheet-root'), name === 'filters' ? renderFiltersSheet() : null)
+      if (name === 'filters') requestAnimationFrame(() => $('.modal__sheet .round-btn')?.focus({ preventScroll: true }))
+      render.last = name || ''
       return
     }
+    fill($('#sheet-root'))
     const wasHome = !$('#home').hidden
-    if (wasHome) homeScroll = scrollY
-    const view = name === 'filters' ? renderFilters() : name === 'place' ? renderPlace(decodeURIComponent(arg || '')) : name === 'dog' ? renderDog() : name === 'about' ? renderAbout() : null
+    if (wasHome) { homeScroll = scrollY; panelScroll = $('#panel-body').scrollTop }
+    const view = name === 'place' ? renderPlace(decodeURIComponent(arg || '')) : name === 'dog' ? renderDog() : name === 'about' ? renderAbout() : null
     if (!view) { location.replace('#/'); return }
     $('#home').hidden = true
     fill(page, view)
@@ -526,8 +739,9 @@
   addEventListener('hashchange', () => {
     const route = location.hash.replace(/^#\/?/, '')
     const toHome = !route
+    const fromSheet = lastRoute === 'filters'
     render()
-    if (toHome && lastRoute) requestAnimationFrame(() => scrollTo(0, homeScroll))
+    if (toHome && lastRoute && !fromSheet) requestAnimationFrame(() => scrollTo(0, homeScroll))
     lastRoute = route
   })
   // Links inside the app count as internal, so Back uses history.
@@ -543,7 +757,10 @@
       const res = await fetch('/data/places.json', { cache: 'no-cache' })
       if (!res.ok) throw new Error(res.status)
       state.data = await res.json()
+      // How far each place is from the closest dog run, for the "Good with a dog" section.
+      for (const p of state.data.places) p._dogRun = state.data.dogParks.reduce((m, r) => Math.min(m, metres(p, { lat: r.lat ?? r[0], lon: r.lon ?? r[1] })), Infinity)
       status.hidden = true
+      setupPanel()
       render()
       initMap()
     } catch {

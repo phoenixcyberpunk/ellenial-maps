@@ -15,15 +15,17 @@
 </head>
 <body>
 <div class="app">
-  <div id="home" hidden>
-    <div id="home-top" class="wrap"></div>
-    <div class="wrap">
+  <div id="home" class="home" hidden>
+    <header id="home-top" class="wrap home__top"></header>
+    <div id="stage" class="stage">
       <div id="map" class="map" role="region"></div>
-      <div id="legend" class="legend"></div>
+      <section id="panel" class="sheet" data-snap="peek">
+        <div id="panel-head" class="sheet__head"></div>
+        <div id="panel-body" class="sheet__body"></div>
+      </section>
     </div>
-    <div id="list" class="wrap list"></div>
-    <div id="home-footer" class="wrap"></div>
   </div>
+  <div id="sheet-root"></div>
   <div id="page" class="wrap" hidden></div>
   <div id="status" class="wrap status" hidden></div>
   <p id="note" class="note" role="status" hidden></p>
@@ -31,6 +33,7 @@
 </div>
 <script src="/i18n.js"></script>
 <script src="/map-style.js"></script>
+<script src="/icons.js"></script>
 <script src="/vendor/maplibre-gl-csp.js"></script>
 <script src="/app.js"></script>
 </body>

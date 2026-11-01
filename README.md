@@ -40,7 +40,29 @@ Dog rules ─────┘   (commits the file; Vercel redeploys)             
 
 "Big, open" is 10 hectares or more, measured from the place's outline; "small, cosy" is under that. Points (viewpoints, many squares) have no size.
 
-Places without a photo show a word in brackets, like `[forest]`, until person-made symbols exist.
+Places without a photo show a calm placeholder: the setting's colour, its icon and a word in brackets, like `[forest]`.
+
+### Photo coverage (1 Nov 2026, data from 30 Oct)
+
+Photos come from Wikimedia Commons, found through the place's own OpenStreetMap tags (`wikimedia_commons`, `image`) and then Wikidata (photo P18, Commons category P373). After both, **73 of 356 places have a photo (21%) and 283 don't**:
+
+| Setting | With photo | Without |
+|---|---|---|
+| Nature | 30 of 38 | 8 |
+| Squares | 20 of 59 | 39 |
+| Urban parks | 11 of 93 | 82 |
+| Libraries | 5 of 40 | 35 |
+| Water | 4 of 34 | 30 |
+| Gardens | 1 of 9 | 8 |
+| A view | 2 of 83 | 81 |
+
+Every weekly run now writes `withoutPhoto` and `withoutPhotoBySetting` into `data/report.json`.
+
+### Home screen
+
+One sideways row of filter chips (More opens a sheet with size, nearby and the dog switch), a Both / Map / List toggle (remembered on the phone), the map, and a pull-up panel with a handle and a count of places within 2 km. The panel holds sections of sideways photo cards: Closest, Good with a dog (outdoors, no dog ban today, and big, nature or within 500 m of a dog run), Nature, and Indoor or sheltered (libraries and places with shelter). Up to 10 cards each.
+
+Pins show the setting's icon. Tapping a pin selects it: its card shows at the top of the panel and is outlined in the sections. Tapping a card selects its pin and moves the map to it. A second tap on the same pin or card opens the place. In the List view, cards open straight away.
 
 ## Theme: Auto / Light / Dark (shared Ellenial pattern)
 
@@ -70,6 +92,7 @@ npm run build                                                                   
 - Map tiles: [OpenFreeMap](https://openfreemap.org), built on OpenMapTiles.
 - Photos: [Wikimedia Commons](https://commons.wikimedia.org), credited per photo.
 - Map engine: [MapLibre GL JS](https://maplibre.org) (BSD-3-Clause).
+- Icons: [Lucide](https://lucide.dev) (ISC), made by its contributors.
 - Fonts: [Fraunces](https://github.com/undercasetype/Fraunces) and [Instrument Sans](https://github.com/Instrument/instrument-sans), SIL Open Font License, via Fontsource.
 - Dog rules: [Göteborg & Co](https://www.goteborg.com/guider/hundvanliga-goteborg) and Jaktlagen (1987:259).
 
