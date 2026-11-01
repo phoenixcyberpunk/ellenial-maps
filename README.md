@@ -1,6 +1,6 @@
 # ellenial maps
 
-The code behind **[maps.ellenial.app](https://maps.ellenial.app)**: a calm, free map of places to rest and recharge without spending money. Nature, water, city parks, squares, gardens, views and libraries, with toilets and water taps on the map. Gothenburg first.
+The code behind **[maps.ellenial.app](https://maps.ellenial.app)**: a calm, free map of places to rest and recharge without spending money. Nature, water, city parks, squares, gardens, views and libraries, with toilets and water taps on the map. All of Sweden.
 
 Made by Ellen, one person, with AI helping on the code. Part of [Ellenial](https://ellenial.app).
 
@@ -14,15 +14,17 @@ Made by Ellen, one person, with AI helping on the code. Part of [Ellenial](https
 ## How it works
 
 ```
-Every Monday night (GitHub Actions)              Every visit
-OpenStreetMap ─┐                                 Phone ──> maps.ellenial.app
-Wikimedia ─────┼─> scripts/build-data.mjs ─> data/gothenburg.json ─> /data/places.json
-Dog rules ─────┘   (commits the file; Vercel redeploys)              /ofm/   map tiles (forwarded to OpenFreeMap)
-                                                                     /photo/ photos (forwarded to Wikimedia)
+Every Monday night (GitHub Actions)                      Every visit
+OpenStreetMap ─┐                                         Phone ──> maps.ellenial.app
+Wikimedia ─────┼─> scripts/build-data.mjs ─> data/sweden/index.json   which squares exist
+Dog rules ─────┘   (commits; Vercel redeploys)  data/sweden/<square>.json   only the squares on screen / around you
+                                                        /ofm/   map tiles (forwarded to OpenFreeMap)
+                                                        /photo/ photos (forwarded to Wikimedia)
 ```
 
-- **`scripts/build-data.mjs`** asks OpenStreetMap (Overpass) for named parks, nature reserves, gardens, viewpoints, squares, swimming spots and libraries, plus toilets, water taps, benches, shelters and dog runs. It works out each place's setting and size from its outline, what's nearby, and finds an openly licensed photo on Wikimedia Commons with its photographer and licence. If a week's data looks broken (far fewer places than last week), nothing is committed.
-- **`data/dog-rules-goteborg.json`** holds Gothenburg's dated dog rules by hand (from Göteborg & Co), plus Sweden's national 1 March – 20 August rule (Jaktlagen). Checked date at the top; update it when the city changes a rule.
+- **The weekly job** downloads Sweden's OpenStreetMap file from Geofabrik and keeps only the tags we use (osmium). **`scripts/build-data.mjs`** then reads it line by line: named parks, nature reserves, gardens, viewpoints, squares, swimming spots and libraries, plus toilets, water taps, benches, shelters and dog runs. It works out each place's setting and size from its outline and what's nearby (through a 1 km grid, so it stays fast for the whole country), and finds an openly licensed photo on Wikimedia Commons with its photographer and licence. Wikimedia's answers are cached in `data/photo-cache.json`, so each week only asks about new places. If a week looks broken (landmarks missing, or far fewer places than last week), nothing is committed.
+- **Map squares.** The output is split into squares of 0.25° × 0.5° (about 28 × 30 km), defined once in `site/cells.js` and shared by the job and the app. `index.json` lists the squares and the dog rules; the app loads the squares around you (for the sections) and the ones the map shows when zoomed in, so a phone never downloads all of Sweden. Place links carry their square (`#/place/<id>/<square>`).
+- **`data/dog-rules-goteborg.json`** holds Gothenburg's dated dog rules by hand (from Göteborg & Co), plus Sweden's national 1 March – 20 August rule (Jaktlagen). The local rules only apply inside Gothenburg; elsewhere the app shows the national rule and asks people to check the municipality's own rules. Checked date at the top; update it when the city changes a rule.
 - **`site/`** is the app: plain HTML, CSS and one script, no framework. Words in English and Swedish live in `site/i18n.js`; the phone's language decides unless the EN | SV switch is used.
 - **`vercel.json`** forwards `/ofm/` to OpenFreeMap and `/photo/` to Wikimedia, and sets strict security headers. The site is `noindex` until it passes the Ellenial release gate.
 
@@ -80,11 +82,11 @@ The header of the file has the five steps for adding it to another app.
 
 ```
 npm install
-node scripts/build-data.mjs --fixture tests/fixture-overpass.json --no-photos   # small offline sample
+node scripts/build-data.mjs --input tests/fixture.geojsonseq --test --no-photos   # small offline sample in data/sample/
 npm run build                                                                   # then serve dist/
 ```
 
-`npm run data` builds the real Gothenburg file (needs internet). The map itself needs the Vercel forwards, so locally only the list and markers show.
+The real data needs the Sweden file from Geofabrik and osmium; see `.github/workflows/weekly-data.yml`. The map itself needs the Vercel forwards, so locally only the list and markers show.
 
 ## Credits
 

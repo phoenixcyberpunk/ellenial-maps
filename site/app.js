@@ -1,5 +1,5 @@
 // ellenial maps: one small script, no framework, no tracking.
-// Views: home (#/), filters (#/filters), a place (#/place/<id>), dog (#/dog), about (#/about).
+// Views: home (#/), filters (#/filters), a place (#/place/<id>/<square>), dog (#/dog), about (#/about).
 // Everything the app needs comes from this site: /data/places.json, /ofm/ (map), /photo/ (photos).
 ;(() => {
   'use strict'
@@ -300,7 +300,7 @@
     const s = t()
     const st = state.dog ? dogStatus(ruleFor(p)) : null
     return h('a', {
-      class: 'pcard' + (state.sel === p.id ? ' is-selected' : ''), href: `#/place/${p.id}`, 'data-id': p.id,
+      class: 'pcard' + (state.sel === p.id ? ' is-selected' : ''), href: placeHref(p), 'data-id': p.id,
       onclick: (e) => {
         // With the map on screen, the first tap shows the place on the map; the second opens it.
         if (mapShown() && state.sel !== p.id) { e.preventDefault(); select(p.id, 'card') }
@@ -315,7 +315,7 @@
   function selectedCard(p, d) {
     const s = t()
     return h('div', { class: 'selcard' },
-      h('a', { class: 'selcard__main', href: `#/place/${p.id}` },
+      h('a', { class: 'selcard__main', href: placeHref(p) },
         placeImg(p, 64, 64, 'selcard__img'),
         h('span', { class: 'selcard__body' },
           h('span', { class: 'card__kind' }, kicker(p)),
@@ -356,8 +356,10 @@
     btn.disabled = true
     btn.lastChild.textContent = s.nearMeBusy
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
+      async (pos) => {
         state.me = { lat: pos.coords.latitude, lon: pos.coords.longitude }
+        btn.lastChild.textContent = s.nearMeBusy
+        await loadCells(around(state.me))
         renderHome()
         if (map && mapShown()) map.flyTo({ center: [state.me.lon, state.me.lat], zoom: 13, padding: { bottom: panelCover() } })
       },
@@ -471,7 +473,7 @@
         style: window.mapStyle(location.origin, dark),
         center: [CENTRE.lon, CENTRE.lat],
         zoom: 11,
-        minZoom: 9,
+        minZoom: 5,
         maxZoom: 18,
         attributionControl: false,
         cooperativeGestures: false,
@@ -515,15 +517,28 @@
         mapReady = true
         updateMap(visible())
       }
+      // Squares for what the map shows, once zoomed in enough to see places.
+      const zoomHint = h('div', { class: 'map-hint', hidden: true }, t().zoomIn)
+      map.getContainer().append(zoomHint)
+      const loadView = async () => {
+        const zoomedIn = map.getZoom() >= 8
+        zoomHint.hidden = zoomedIn
+        if (!zoomedIn) return
+        const b = map.getBounds()
+        const keys = cellsIn(b.getSouth(), b.getWest(), b.getNorth(), b.getEast())
+        if (keys.length <= 60 && await loadCells(keys)) updateMap(visible())
+      }
+      map.on('moveend', loadView)
       map.on('load', () => {
         addOwnLayers()
+        loadView()
         // First tap on a pin selects it (and its card); a second tap on the same pin opens it.
         map.on('click', (e) => {
           if (!map.getLayer('em-places')) return
           const f = map.queryRenderedFeatures(e.point, { layers: ['em-places'] })[0]
           const id = f?.properties?.id
           if (!id) { if (state.sel) select(null); return }
-          if (state.sel === id) { internalNav = true; location.hash = `#/place/${id}` } else select(id, 'pin')
+          if (state.sel === id) { const p = state.data.places.find((x) => x.id === id); internalNav = true; location.hash = p ? placeHref(p) : '#/' } else select(id, 'pin')
         })
         map.on('mouseenter', 'em-places', () => { map.getCanvas().style.cursor = 'pointer' })
         map.on('mouseleave', 'em-places', () => { map.getCanvas().style.cursor = '' })
@@ -583,10 +598,17 @@
   }
 
   // ---------- a place ----------
-  function renderPlace(id) {
+  function renderPlace(id, cell) {
     const s = t()
     const p = state.data.places.find((x) => x.id === id)
-    if (!p) { location.replace('#/'); return null }
+    if (!p) {
+      // Not loaded yet: fetch its square, then show it. Unknown place: go home.
+      if (cell && state.idx.cells[cell] != null && !loadedCells.has(cell)) {
+        loadCells([cell]).then(render)
+        return h('div', { class: 'status' }, h('p', null, s.loading))
+      }
+      location.replace('#/'); return null
+    }
     document.title = `${p.name} · ${s.title}`
     const ph = p.photo
     const links = [
@@ -626,7 +648,7 @@
     const st = dogStatus(rule)
     const nat = state.data.dogRules.national
     const run = nearestDogRun(p, 1500)
-    if (!st && p.setting !== 'nature' && !run) return null
+    if (!st && p.setting !== 'nature' && !run && inArea(p, state.idx.localDogArea)) return null
     const monthLetters = t().months.map((m) => m[0].toUpperCase())
     const nowMonth = new Date().getMonth()
     return h('section', { class: 'panel' },
@@ -637,6 +659,7 @@
       st ? h('p', { class: 'small' }, st.text) : null,
       !st && p.setting === 'nature' ? h('p', { class: 'small' }, s.natureSeasonText(fmtDay(nat.from), fmtDay(nat.to))) : null,
       run ? h('p', { class: 'small' }, s.dogRunNearby(`${run.p.name || s.unnamedDogRun} (${s.km(run.d)})`)) : null,
+      !st && !inArea(p, state.idx.localDogArea) ? h('p', { class: 'muted small' }, s.dogsCheckLocal) : null,
       st ? h('p', { class: 'muted small' }, `${s.source}: `, h('a', { href: rule.sourceUrl, rel: 'noopener noreferrer', target: '_blank' }, rule.source)) : null)
   }
 
@@ -653,7 +676,9 @@
     const on = inRange(nat.from, nat.to)
     const o = from()
     const runs = state.data.dogParks.map((p) => ({ p, d: metres(o, p) })).sort((a, b) => a.d - b.d).slice(0, 5)
-    const beachRule = state.data.dogRules.local.find((r) => r.id === 'beach-summer-ban')
+    // Gothenburg's own rules only make sense when you're in Gothenburg.
+    const local = inArea(o, state.idx.localDogArea)
+    const beachRule = local ? state.data.dogRules.local.find((r) => r.id === 'beach-summer-ban') : null
     const beachesClosed = beachRule && inRange(beachRule.from, beachRule.to)
     // Position of today on a Jan–Dec bar.
     const d = new Date()
@@ -682,6 +707,7 @@
         h('p', { class: 'small' }, beachRule.match.join(', ') + '. ' + s.dogsBannedBetween(fmtDay(beachRule.from), fmtDay(beachRule.to))),
         h('p', { class: 'small' }, beachesClosed ? s.beachesClosed : s.beachesOpen),
         h('p', { class: 'muted small' }, `${s.source}: `, h('a', { href: beachRule.sourceUrl, rel: 'noopener noreferrer', target: '_blank' }, beachRule.source))) : null,
+      !local ? h('p', { class: 'small muted' }, s.dogsCheckLocal) : null,
       h('section', { class: 'group' },
         h('p', { class: 'small' }, s.cafesLinkOut),
         h('div', { class: 'links' },
@@ -720,7 +746,7 @@
     if (!state.data) return
     const route = location.hash.replace(/^#\/?/, '')
     const page = $('#page')
-    const [name, arg] = route.split('/')
+    const [name, arg, arg2] = route.split('/')
     const onHome = !name || name === 'filters'
     // In the Both view the map and panel fill the screen, so the page itself doesn't scroll.
     document.body.classList.toggle('is-locked', onHome && state.view === 'both')
@@ -738,7 +764,7 @@
     fill($('#sheet-root'))
     const wasHome = !$('#home').hidden
     if (wasHome) { homeScroll = scrollY; panelScroll = $('#panel-body').scrollTop }
-    const view = name === 'place' ? renderPlace(decodeURIComponent(arg || '')) : name === 'dog' ? renderDog() : name === 'about' ? renderAbout() : null
+    const view = name === 'place' ? renderPlace(decodeURIComponent(arg || ''), arg2) : name === 'dog' ? renderDog() : name === 'about' ? renderAbout() : null
     if (!view) { location.replace('#/'); return }
     $('#home').hidden = true
     fill(page, view)
@@ -760,17 +786,52 @@
   document.addEventListener('click', (e) => { const a = e.target.closest?.('a[href^="#/"]'); if (a) internalNav = true })
 
   // ---------- start ----------
+  // ---------- data: an index, then only the map squares needed ----------
+  // /data/sweden/index.json says which squares exist; each square's file holds its places,
+  // toilets, water taps and dog runs. Squares load around you (for the sections) and for what
+  // the map shows, so a phone never downloads all of Sweden.
+  const { cellOf, cellsIn } = window.EllenialCells
+  const loadedCells = new Map() // key -> 'loading' | 'done'
+  const placeIds = new Set()
+  const placeHref = (p) => `#/place/${p.id}/${cellOf(p.lat, p.lon)}`
+  const around = (o) => cellsIn(o.lat - 0.2, o.lon - 0.4, o.lat + 0.2, o.lon + 0.4)
+  const inArea = (o, a) => a && o.lat >= a.south && o.lat <= a.north && o.lon >= a.west && o.lon <= a.east
+
+  async function loadCells(keys) {
+    const want = keys.filter((k) => state.idx.cells[k] != null && !loadedCells.has(k))
+    if (!want.length) return false
+    for (const k of want) loadedCells.set(k, 'loading')
+    const parts = await Promise.all(want.map(async (k) => {
+      try {
+        const res = await fetch(`/data/sweden/${k}.json`)
+        if (!res.ok) throw new Error(res.status)
+        loadedCells.set(k, 'done')
+        return res.json()
+      } catch { loadedCells.delete(k); return null }
+    }))
+    const d = state.data
+    for (const part of parts.filter(Boolean)) {
+      for (const p of part.places) if (!placeIds.has(p.id)) { placeIds.add(p.id); d.places.push(p) }
+      d.toilets.push(...part.toilets); d.water.push(...part.water); d.dogParks.push(...part.dogParks)
+    }
+    // How far each place is from the closest dog run, for the "Good with a dog" section.
+    for (const p of d.places) p._dogRun = d.dogParks.reduce((m, r) => Math.min(m, metres(p, r)), Infinity)
+    return true
+  }
+
   async function load() {
     const s = t()
     const status = $('#status')
     status.hidden = false
     fill(status, h('p', null, s.loading))
     try {
-      const res = await fetch('/data/places.json', { cache: 'no-cache' })
+      const res = await fetch('/data/sweden/index.json', { cache: 'no-cache' })
       if (!res.ok) throw new Error(res.status)
-      state.data = await res.json()
-      // How far each place is from the closest dog run, for the "Good with a dog" section.
-      for (const p of state.data.places) p._dogRun = state.data.dogParks.reduce((m, r) => Math.min(m, metres(p, { lat: r.lat ?? r[0], lon: r.lon ?? r[1] })), Infinity)
+      state.idx = await res.json()
+      state.data = { places: [], toilets: [], water: [], dogParks: [], dogRules: state.idx.dogRules, generated: state.idx.generated }
+      // A link straight to a place carries its square; load that too.
+      const linked = location.hash.match(/^#\/place\/[^/]+\/(\d+_\d+)/)
+      await loadCells([...around(from()), ...(linked ? [linked[1]] : [])])
       status.hidden = true
       setupPanel()
       render()

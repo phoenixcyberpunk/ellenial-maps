@@ -265,3 +265,5 @@ body.is-locked { overflow: hidden; overscroll-behavior: none; }
 .dogstrip__title { font-size: 14px; font-weight: 600; line-height: 1.3; }
 .dogstrip__line { font-size: 13px; color: var(--muted); }
 .dogstrip::before { content: ''; flex: none; width: 12px; height: 12px; border-radius: 50%; background: var(--dog); box-shadow: 0 0 0 2px var(--surface); }
+
+.map-hint { position: absolute; left: 50%; top: 44px; transform: translateX(-50%); z-index: 1; padding: 6px 14px; border-radius: 999px; background: var(--ink); color: var(--bg); font-size: 13px; font-weight: 600; white-space: nowrap; }
