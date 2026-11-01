@@ -35,6 +35,8 @@ const args = process.argv.slice(2)
 const input = args.includes('--input') ? args[args.indexOf('--input') + 1] : null
 const test = args.includes('--test')
 const withPhotos = !args.includes('--no-photos')
+// A deliberate change of rules (like dropping plain hills) is allowed to shrink the data once.
+const allowDrop = args.includes('--allow-drop')
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 // What happened, written to data/report.json so problems are visible in the repo.
 const trail = []
@@ -186,7 +188,9 @@ const inBox = (p, a) => p.lat >= a.south && p.lat <= a.north && p.lon >= a.west 
 const isPrivate = (t) => /^(private|no|customers|permit)$/.test(t.access || '')
 
 function kindOf(t) {
-  if (t.natural === 'peak' || t.natural === 'hill') return 'viewpoint'
+  // A named hill or mountain top is only "A view" when it's also tagged as a viewpoint. Otherwise all of
+  // Sweden's summits and forest hills would crowd out real lookouts (15,857 of 29,022 places, 1 Nov).
+  if ((t.natural === 'peak' || t.natural === 'hill') && t.tourism !== 'viewpoint') return null
   if (t.landuse === 'recreation_ground') return 'park'
   if (t.amenity === 'library') return 'library'
   if (t.place === 'square' || (t.highway === 'pedestrian' && t.area === 'yes')) return 'square'
@@ -370,7 +374,8 @@ async function main() {
         const p = { lat: sh.lat, lon: sh.lon }
         if (t.amenity === 'toilets') toilets.push({ ...p, fee: t.fee === 'yes' })
         else if (t.amenity === 'drinking_water') water.push(p)
-        else if (t.amenity === 'shelter') shelters.push(p)
+        // Bus-stop and animal shelters aren't somewhere to sit out the rain at a park.
+        else if (t.amenity === 'shelter') { if (!/^(public_transport|field_shelter)$/.test(t.shelter_type || '')) shelters.push(p) }
         else if (t.amenity === 'bench') benches.push(p)
         else dogParks.push({ ...p, name: t.name || null, fenced: t.barrier === 'fence' || t.fenced === 'yes', osm: `${e.type}/${e.id}` })
       }
@@ -486,7 +491,7 @@ async function main() {
   const dir = test ? 'data/sample' : OUT_DIR
   if (!test && existsSync(`${dir}/index.json`)) {
     const old = JSON.parse(readFileSync(`${dir}/index.json`, 'utf8'))
-    if (old.counts?.places > 500 && out.length < old.counts.places * 0.8) {
+    if (!allowDrop && old.counts?.places > 500 && out.length < old.counts.places * 0.8) {
       console.error(`Only ${out.length} places this week (was ${old.counts.places}). Keeping last week's data.`)
       process.exit(1)
     }
