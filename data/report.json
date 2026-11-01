@@ -1,7 +1,7 @@
 {
- "generated": "2026-11-01T12:01:36.923Z",
+ "generated": "2026-11-01T14:43:14.556Z",
  "source": "Geofabrik Sweden extract (OpenStreetMap)",
- "features": 12243,
+ "features": 155492,
  "landmarks": {
   "Slottsskogen": true,
   "Delsjö": true,
@@ -10,35 +10,43 @@
   "Kungsparken": true,
   "Trädgårdsföreningen": true,
   "Ramberget": true,
-  "Stora Amundö": true
+  "Stora Amundö": true,
+  "Hagaparken": true,
+  "Pildammsparken": true,
+  "Kungsträdgården": true,
+  "Stadsparken": true
  },
  "trail": [
-  "read 12243 features from work/area.geojsonseq"
+  "read 155492 features from work/area.geojsonseq",
+  "29022 places after merging twins",
+  "photos: 328 requests to Wikimedia (6576 new Wikidata items, 2456 new files)"
  ],
  "counts": {
-  "places": 356,
+  "places": 29022,
   "bySetting": {
-   "nature": 38,
-   "gardens": 9,
-   "urban": 93,
-   "squares": 59,
-   "water": 34,
-   "libraries": 40,
-   "view": 83
+   "nature": 6733,
+   "water": 1698,
+   "urban": 3264,
+   "gardens": 193,
+   "squares": 612,
+   "libraries": 665,
+   "view": 15857
   },
-  "withPhoto": 73,
-  "withoutPhoto": 283,
+  "withPhoto": 2630,
+  "withoutPhoto": 26392,
   "withoutPhotoBySetting": {
-   "nature": 8,
-   "urban": 82,
-   "squares": 39,
-   "water": 30,
-   "gardens": 8,
-   "libraries": 35,
-   "view": 81
+   "nature": 4879,
+   "urban": 2980,
+   "water": 1528,
+   "gardens": 171,
+   "squares": 519,
+   "libraries": 591,
+   "view": 15724
   },
-  "toilets": 190,
-  "water": 47,
-  "dogParks": 73
- }
+  "toilets": 7416,
+  "water": 984,
+  "dogParks": 1113,
+  "squares": 752
+ },
+ "seconds": 286
 }
