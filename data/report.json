@@ -1,7 +1,7 @@
 {
- "generated": "2026-11-05T12:33:42.113Z",
+ "generated": "2026-11-05T20:25:40.163Z",
  "source": "Geofabrik Sweden extract (OpenStreetMap)",
- "features": 138229,
+ "features": 138246,
  "landmarks": {
   "Slottsskogen": true,
   "Delsjö": true,
@@ -17,25 +17,25 @@
   "Stadsparken": true
  },
  "trail": [
-  "read 138229 features from work/area.geojsonseq",
-  "13805 places after merging twins",
-  "wikidata protected area: 2176 with photos",
+  "read 138246 features from work/area.geojsonseq",
+  "13816 places after merging twins",
+  "wikidata protected area: 2179 with photos",
   "wikidata park: 645 with photos",
   "wikidata beach: 26 with photos",
   "wikidata square: 333 with photos",
   "wikidata garden: 215 with photos",
   "wikidata library: 154 with photos",
   "wikidata viewpoint: 20 with photos",
-  "photos: 267 matched to Wikidata by name and location (3052 names)",
-  "photos: 101 from photos taken at the place (0 new lookups, 3815 places still to check in later weeks)",
-  "photos: 0 requests to Wikimedia (0 new Wikidata items, 0 new files)",
-  "galleries: 1861 places with a gallery (898 new categories asked, 0 left for later weeks)",
-  "search: 13805 places, 4685 towns and areas, 292 parts"
+  "photos: 267 matched to Wikidata by name and location (3053 names)",
+  "photos: 102 from photos taken at the place (8 new lookups, 3815 places still to check in later weeks)",
+  "photos: 10 requests to Wikimedia (12 new Wikidata items, 1 new files)",
+  "galleries: 1861 places with a gallery (0 new categories asked, 0 left for later weeks)",
+  "search: 13816 places, 4685 towns and areas, 292 parts"
  ],
  "counts": {
-  "places": 13805,
+  "places": 13816,
   "bySetting": {
-   "nature": 6791,
+   "nature": 6802,
    "water": 1697,
    "urban": 3264,
    "gardens": 193,
@@ -43,15 +43,15 @@
    "libraries": 665,
    "view": 583
   },
-  "withPhoto": 2930,
+  "withPhoto": 2931,
   "photoFrom": {
    "linked": 2563,
    "wikidata-match": 267,
-   "nearby": 100
+   "nearby": 101
   },
-  "withoutPhoto": 10875,
+  "withoutPhoto": 10885,
   "withoutPhotoBySetting": {
-   "nature": 4697,
+   "nature": 4707,
    "urban": 2904,
    "water": 1519,
    "gardens": 171,
@@ -65,5 +65,5 @@
   "squares": 705,
   "towns": 4685
  },
- "seconds": 415
+ "seconds": 40
 }
