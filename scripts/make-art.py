@@ -13,7 +13,7 @@ MAP = {  # source file -> (asset name, swap ink in dark mode?)
     'IMG_0534.png': ('urban', True),     # tree = park
     'IMG_0535.png': ('nature', True),    # leaf = nature reserve
     'IMG_0536.png': ('water', True),     # waves = swim
-    'IMG_0537.png': ('squares', True),   # fountain (Ellen is redoing this one)
+    'IMG_0537.png': ('squares', True),   # fountain
     'IMG_0538.png': ('view', True),      # mountain + sun
     'IMG_0539.png': ('shelter', True),   # umbrella = shelter from rain
     'IMG_0540.png': ('toilet', True),    # WC
