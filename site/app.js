@@ -135,12 +135,19 @@
       class: 'dog-switch' + (withHint ? ' dog-switch--row' : ''), 'aria-pressed': String(state.dog), type: 'button',
       onclick: () => { state.dog = !state.dog; store.set('dog', state.dog); render() },
     },
+    art('paw', withHint ? 24 : 18),
     withHint ? h('span', { class: 'dog-switch__text' }, h('span', { class: 'dog-switch__label' }, s.dogSwitchLong), h('span', { class: 'dog-switch__hint' }, s.dogSwitchHint)) : s.dogSwitch,
     h('span', { class: 'switch', 'aria-hidden': 'true' }, h('span', { class: 'switch__knob' })))
   }
 
-  // The setting's icon (from icons.js, our own build file) as an SVG element.
+  // Ellen's own hand-drawn icons (5 Nov), in site/art/ as <name>-light.png and <name>-dark.png
+  // (made by scripts/make-art.py). Anything not drawn yet keeps its Lucide icon from icons.js.
+  const ART = new Set(['nature', 'water', 'urban', 'squares', 'gardens', 'view', 'libraries', 'toilet', 'tap', 'dogrun', 'town', 'shelter', 'paw'])
+  const art = (name, size) => h('span', { class: `art art--${name}`, style: `width:${size}px;height:${size}px`, 'aria-hidden': 'true' })
+
+  // The setting's icon: Ellen's drawing when there is one, else from icons.js (our own build file).
   function settingIcon(setting, size) {
+    if (ART.has(setting)) return art(setting, size)
     const inner = (window.EM_ICONS || {})[setting]
     if (!inner) return null
     const doc = new DOMParser().parseFromString(`<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`, 'image/svg+xml')
@@ -149,9 +156,10 @@
 
   // Legend entry: the same disc and icon as the pin on the map.
   function legendDot(kind, icon) {
-    const dot = h('span', { class: 'dot dot--' + kind, 'aria-hidden': 'true' })
-    const svg = settingIcon(icon, 11)
-    if (svg) { svg.setAttribute('stroke-width', '2.6'); dot.append(svg) }
+    const drawn = ART.has(icon)
+    const dot = h('span', { class: 'dot dot--' + (drawn ? 'art' : kind), 'aria-hidden': 'true' })
+    const svg = settingIcon(icon, drawn ? 14 : 11)
+    if (svg) { if (!drawn) svg.setAttribute('stroke-width', '2.6'); dot.append(svg) }
     return dot
   }
 
@@ -182,9 +190,87 @@
     svg.append(poly)
     const s = t()
     const word = s.kindShort[p.kind] || s.settings[p.setting]
-    return h('div', { class: `outline outline--${p.setting} ${big ? 'outline--big' : ''} ${cls || ''}`, role: 'img', 'aria-label': s.outlineOf(p.name) },
+    const card = h('div', { class: `outline outline--${p.setting} ${big ? 'outline--big' : ''} ${cls || ''}`, role: 'img', 'aria-label': s.outlineOf(p.name) },
       svg,
-      big ? h('span', { class: 'outline__label' }, settingIcon(p.setting, 14), word) : null)
+      big ? h('span', { class: 'outline__label' }, settingIcon(p.setting, 16), word) : null)
+    if (/pcard__img/.test(cls || '') && Array.isArray(p.obox)) cardMap(p, card)
+    return card
+  }
+
+  // ---------- map pictures behind outline cards (5 Nov, an experiment on the preview) ----------
+  // One hidden map "photographs" each card's place: the real map with the shape drawn on it.
+  // Only cards on screen, only when the phone is idle, one at a time. A picture is drawn once and
+  // kept on this phone (Cache Storage), so parks that never change are never redrawn; a new shape,
+  // the other theme or a new map style gets a new picture. Until it's ready the plain outline shows.
+  const SNAP_W = 168, SNAP_H = 112, SNAP_VERSION = 'v1'
+  const snapUrls = new Map() // key -> object URL, for this visit
+  const snapQueue = []
+  let snapMap = null, snapBusy = false, snapCache = null
+  const snapKey = (p) => `${SNAP_VERSION}-${isDark() ? 'd' : 'l'}-${p.id}-${p.outline.length}-${p.outline.slice(2, 8).join('.')}`
+  const snapSeen = new IntersectionObserver((entries) => {
+    for (const e of entries) if (e.isIntersecting) { snapSeen.unobserve(e.target); snapQueue.push(e.target._snap); runSnaps() }
+  }, { rootMargin: '200px' })
+  function cardMap(p, card) {
+    const key = snapKey(p)
+    const show = (url) => { card.style.backgroundImage = `url("${url}")`; card.classList.add('outline--map') }
+    if (snapUrls.has(key)) { show(snapUrls.get(key)); return }
+    card._snap = { p, key, show }
+    // Already drawn on an earlier visit: straight from this phone's cache, no queue.
+    openSnapCache().then((c) => c && c.match('/card/' + key)).then(async (hit) => {
+      if (hit) { const url = URL.createObjectURL(await hit.blob()); snapUrls.set(key, url); show(url) }
+      else if (card.isConnected) snapSeen.observe(card)
+    }).catch(() => card.isConnected && snapSeen.observe(card))
+  }
+  const openSnapCache = () => (snapCache !== null ? Promise.resolve(snapCache) : (window.caches ? caches.open('ellenial-maps-cards').catch(() => false) : Promise.resolve(false)).then((c) => (snapCache = c)))
+  const idle = (fn) => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 1500 }) : setTimeout(fn, 60))
+  async function runSnaps() {
+    if (snapBusy || !snapQueue.length || !window.maplibregl) return
+    snapBusy = true
+    const job = snapQueue.shift()
+    try {
+      if (snapUrls.has(job.key)) { job.show(snapUrls.get(job.key)); return }
+      await openSnapCache()
+      await new Promise((ok) => idle(ok))
+      const blob = await drawSnap(job.p)
+      if (!blob) return
+      const url = URL.createObjectURL(blob)
+      snapUrls.set(job.key, url)
+      job.show(url)
+      if (snapCache) snapCache.put('/card/' + job.key, new Response(blob, { headers: { 'content-type': blob.type } })).catch(() => {})
+    } catch { /* keep the plain outline */ } finally {
+      snapBusy = false
+      if (snapQueue.length) runSnaps()
+    }
+  }
+  function drawSnap(p) {
+    return new Promise((resolve) => {
+      const dark = isDark()
+      if (!snapMap || snapMap._dark !== dark) {
+        snapMap?.remove()
+        const box = document.getElementById('snap-map') || document.body.appendChild(h('div', { id: 'snap-map', 'aria-hidden': 'true' }))
+        snapMap = new window.maplibregl.Map({
+          container: box, style: window.mapStyle(location.origin, dark), interactive: false, attributionControl: false,
+          pixelRatio: 2, fadeDuration: 0, canvasContextAttributes: { preserveDrawingBuffer: true },
+          transformRequest: (url) => ({ url: url.replace('https://tiles.openfreemap.org/', location.origin + '/ofm/') }),
+        })
+        snapMap._dark = dark
+        snapMap._ready = new Promise((ok) => snapMap.once('load', () => {
+          snapMap.addSource('shape', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+          const line = dark ? '#BFD8C2' : '#3E6B47'
+          snapMap.addLayer({ id: 'shape-fill', type: 'fill', source: 'shape', paint: { 'fill-color': line, 'fill-opacity': 0.28 } })
+          snapMap.addLayer({ id: 'shape-line', type: 'line', source: 'shape', paint: { 'line-color': line, 'line-width': 2 } })
+          ok()
+        }))
+      }
+      const m = snapMap
+      const timer = setTimeout(() => resolve(null), 8000)
+      m._ready.then(() => {
+        m.getSource('shape').setData({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [outlineGeo(p)] }, properties: {} })
+        m.fitBounds([[p.obox[1], p.obox[0]], [p.obox[3], p.obox[2]]], { padding: 14, maxZoom: 16, duration: 0 })
+        m.once('idle', () => { clearTimeout(timer); m.getCanvas().toBlob((b) => resolve(b), 'image/webp', 0.8) })
+        m.triggerRepaint()
+      })
+    })
   }
 
   // If a photo can't load, show the outline or placeholder instead of a broken image.
@@ -417,7 +503,8 @@
     type: 'search', class: 'search__input', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', enterkeyhint: 'search',
     onfocus: () => openSearch(),
     oninput: (e) => { search.q = e.target.value; renderResults() },
-    onkeydown: (e) => { if (e.key === 'Escape') closeSearch() },
+    // Enter / the keyboard's search key closes the keyboard so the results are in view.
+    onkeydown: (e) => { if (e.key === 'Escape') closeSearch(); else if (e.key === 'Enter') { e.preventDefault(); searchInput.blur() } },
   })
 
   function searchRow() {
@@ -493,8 +580,8 @@
     if (!search.open) return
     const s = t()
     const q = fold(search.q.trim())
-    const privacy = h('p', { class: 'search-note' }, s.searchPrivacy)
-    if (q.length < 2) return fill(box, h('p', { class: 'search-hint' }, s.searchHint), privacy)
+    // No explanation text (Ellen, 5 Nov): an empty field shows nothing until two letters are typed.
+    if (q.length < 2) return fill(box)
     const key = shardKey(q)
     loadShard(key)
     const part = shards.get(key)
@@ -530,8 +617,7 @@
           h('span', { class: 'sresult__icon sresult__icon--town' }, settingIcon('town', 20)),
           h('span', { class: 'sresult__text' },
             h('span', { class: 'sresult__name' }, marked(x.name, m.at, len)),
-            h('span', { class: 'sresult__meta' }, s.townKind(x.type, x.near)))))] : null,
-      privacy)
+            h('span', { class: 'sresult__meta' }, s.townKind(x.type, x.near)))))] : null)
   }
 
   async function pickPlace(p) {
@@ -600,7 +686,10 @@
     panel.style.setProperty('--y', `${y ?? snapY(state.snap)}px`)
     $('.sheet__handle')?.setAttribute('aria-expanded', String(state.snap !== 'peek'))
   }
-  const panelCover = () => (state.view === 'both' ? $('#stage').clientHeight - snapY(state.snap) : 0)
+  // On computers (900 px and wider, like ellenial weather) the list sits beside the map instead of over it.
+  const wide = window.matchMedia('(min-width: 900px)')
+  wide.addEventListener?.('change', () => { if (map) requestAnimationFrame(() => map.resize()) })
+  const panelCover = () => (state.view === 'both' && !wide.matches ? $('#stage').clientHeight - snapY(state.snap) : 0)
 
   function setupPanel() {
     const head = $('#panel-head')
@@ -665,15 +754,20 @@
     pinCache[dark] = Promise.all(jobs.map(([id, key, fill, iconInk, S]) => new Promise((resolve) => {
       const c = document.createElement('canvas'); c.width = S; c.height = S
       const g = c.getContext('2d')
+      const drawn = ART.has(key)
+      // Ellen's drawings carry their own colours, so they sit on a calm paper disc (dark: a dark
+      // disc) with a brand ring; the Lucide ones keep the coloured disc with a white line icon.
       g.beginPath(); g.arc(S / 2, S / 2, S / 2 - 3, 0, Math.PI * 2)
-      g.fillStyle = fill; g.fill(); g.lineWidth = 4; g.strokeStyle = ring; g.stroke()
+      g.fillStyle = drawn ? (dark ? '#221E2C' : '#FFFBF5') : fill; g.fill()
+      g.lineWidth = drawn ? 3 : 4; g.strokeStyle = drawn ? (dark ? '#B39AE8' : '#342E86') : ring; g.stroke()
+      const img = new Image()
+      const d = Math.round(S * (drawn ? 0.68 : 0.54))
+      img.onload = () => { g.drawImage(img, (S - d) / 2, (S - d) / 2, d, d); resolve([id, g.getImageData(0, 0, S, S)]) }
+      img.onerror = () => resolve([id, g.getImageData(0, 0, S, S)])
+      if (drawn) { img.src = `/art/${key}-${dark ? 'dark' : 'light'}.png`; return }
       const inner = (window.EM_ICONS || {})[key]
       if (!inner) return resolve([id, g.getImageData(0, 0, S, S)])
       const svgText = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${iconInk}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`
-      const img = new Image()
-      const d = Math.round(S * 0.54)
-      img.onload = () => { g.drawImage(img, (S - d) / 2, (S - d) / 2, d, d); resolve([id, g.getImageData(0, 0, S, S)]) }
-      img.onerror = () => resolve([id, g.getImageData(0, 0, S, S)])
       img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgText)
     })))
     return pinCache[dark]
@@ -733,6 +827,12 @@
             'symbol-sort-key': ['get', 'rank'],
           },
         })
+        // The selected place's name beside its pin, so it's clear what was tapped (Ellen, 5 Nov).
+        map.addLayer({
+          id: 'em-sel-label', type: 'symbol', source: 'em-places', filter: ['==', ['get', 'id'], ''],
+          layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Regular'], 'text-size': 15, 'text-anchor': 'left', 'text-offset': [1.9, 0], 'text-max-width': 14, 'text-allow-overlap': true, 'text-ignore-placement': true },
+          paint: { 'text-color': dark ? '#F3EEF8' : '#1F1A2E', 'text-halo-color': dark ? '#17141F' : '#FEF2E2', 'text-halo-width': 2.5 },
+        })
         map.addLayer({ id: 'em-me', type: 'circle', source: 'em-me', paint: { 'circle-radius': 7, 'circle-color': dark ? '#F3EEF8' : '#1F1A2E', 'circle-stroke-color': dark ? '#17141F' : '#FEF2E2', 'circle-stroke-width': 3 } })
         mapReady = true
         updateMap(visible())
@@ -791,8 +891,9 @@
     if (!map || !mapReady) return
     const d = state.data
     // The selected pin is drawn last so it sits on top.
-    map.getSource('em-places').setData(fc(list.map((x) => x.p), (p) => ({ id: p.id, setting: p.setting, rank: p.id === state.sel ? 1 : 0 })))
+    map.getSource('em-places').setData(fc(list.map((x) => x.p), (p) => ({ id: p.id, setting: p.setting, name: p.name, rank: p.id === state.sel ? 1 : 0 })))
     map.setFilter('em-sel', ['==', ['get', 'id'], state.sel || ''])
+    map.setFilter('em-sel-label', ['==', ['get', 'id'], state.sel || ''])
     map.getSource('em-toilets').setData(fc(d.toilets))
     map.getSource('em-water').setData(fc(d.water))
     map.getSource('em-dogparks').setData(fc(state.dog ? d.dogParks : []))
@@ -825,6 +926,98 @@
   }
 
   // ---------- a place ----------
+  // ---------- a small gallery (Ellen, 5 Nov): up to 5 more photos from the place's Commons
+  // category, fetched weekly with their credits (gallery/<id>.json). Tapping one shows it big with
+  // its own credit; the arrows step through them; the last tile leads to all photos on Commons.
+  const galleries = new Map()
+  function gallery(p, hero) {
+    const s = t()
+    const strip = h('div', { class: 'gallery', role: 'group', 'aria-label': s.galleryLabel })
+    const show = (photos, i) => {
+      const ph = photos[i]
+      hero.querySelector('.hero__img')?.replaceWith(photoOr(h('img', { class: 'hero__img', src: ph.src, alt: '', width: ph.w, height: ph.h }), p.setting, 'hero__img', p))
+      hero.querySelector('.hero__credit')?.remove()
+      hero.append(h('a', { class: 'hero__credit', href: ph.page, rel: 'noopener noreferrer', target: '_blank' }, s.photoBy(ph.by, ph.licence)))
+      strip.querySelectorAll('.gallery__thumb').forEach((b, j) => b.setAttribute('aria-pressed', String(j === i)))
+      strip.querySelectorAll('.gallery__thumb')[i]?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
+      const count = hero.querySelector('.hero__count')
+      if (count) count.textContent = `${i + 1} / ${photos.length}`
+      strip.dataset.at = i
+    }
+    const build = (extra) => {
+      const photos = [p.photo, ...extra].filter(Boolean)
+      if (photos.length < 2) return
+      fill(strip,
+        photos.map((ph, i) => h('button', { type: 'button', class: 'gallery__thumb', 'aria-pressed': String(i === 0), 'aria-label': s.galleryShow(i + 1, photos.length), onclick: () => show(photos, i) },
+          h('img', { src: ph.src, alt: '', loading: 'lazy', width: 96, height: 72 }))),
+        p.morePhotos ? h('a', { class: 'gallery__more', href: p.morePhotos, rel: 'noopener noreferrer', target: '_blank' }, s.galleryAll, svg(ICON.out, 14)) : null)
+      strip.dataset.at = 0
+      const step = (d) => show(photos, (Number(strip.dataset.at) + d + photos.length) % photos.length)
+      hero.append(h('div', { class: 'hero__steps' },
+        h('button', { type: 'button', class: 'hero__step', 'aria-label': s.galleryPrev, onclick: () => step(-1) }, svg(ICON.back, 18)),
+        h('span', { class: 'hero__count', 'aria-live': 'polite' }, `1 / ${photos.length}`),
+        h('button', { type: 'button', class: 'hero__step', 'aria-label': s.galleryNext, onclick: () => step(1) }, svg(ICON.next, 18))))
+    }
+    if (galleries.has(p.id)) build(galleries.get(p.id))
+    else fetch(`/data/sweden/gallery/${encodeURIComponent(p.id)}.json`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list) => { list.forEach((ph) => { ph.src = ownPhoto(ph.src) }); galleries.set(p.id, list); build(list) })
+      .catch(() => {})
+    return strip
+  }
+
+  // ---------- "Where it is": a small real map on the place page with the place's own shape
+  // (Ellen, 5 Nov: cheap context for the outline cards). The outline is stored scaled to its own
+  // corners (obox), so it can be put back on the map. One small map, removed when the page closes.
+  let placeMap = null
+  function dropPlaceMap() { if (placeMap) { placeMap.remove(); placeMap = null } }
+  function outlineGeo(p) {
+    const [w, hh, ...xy] = p.outline
+    const [south, west, north, east] = p.obox
+    const lat0 = (south + north) / 2
+    const kLat = 111320, kLon = 111320 * Math.cos((lat0 * Math.PI) / 180)
+    const span = Math.max((east - west) * kLon, (north - south) * kLat)
+    const ring = []
+    for (let i = 0; i + 1 < xy.length; i += 2) ring.push([west + (xy[i] / 100) * span / kLon, north - (xy[i + 1] / 100) * span / kLat])
+    ring.push(ring[0])
+    return ring
+  }
+  function whereItIs(p) {
+    const s = t()
+    if (!window.maplibregl) return null
+    const box = h('div', { class: 'where__map', role: 'img', 'aria-label': s.whereLabel(p.name) })
+    requestAnimationFrame(() => {
+      if (!box.isConnected) return
+      dropPlaceMap()
+      try {
+        const dark = isDark()
+        const hasShape = Array.isArray(p.outline) && Array.isArray(p.obox)
+        placeMap = new window.maplibregl.Map({
+          container: box, style: window.mapStyle(location.origin, dark), interactive: false, attributionControl: false,
+          center: [p.lon, p.lat], zoom: 15,
+          transformRequest: (url) => ({ url: url.replace('https://tiles.openfreemap.org/', location.origin + '/ofm/') }),
+        })
+        if (hasShape) placeMap.fitBounds([[p.obox[1], p.obox[0]], [p.obox[3], p.obox[2]]], { padding: 28, maxZoom: 16, duration: 0 })
+        placeMap.on('load', () => {
+          const ink = { nature: '#4F8A5B', urban: '#4F8A5B', gardens: '#4F8A5B', water: '#3D6F8A' }[p.setting] || (dark ? '#B39AE8' : '#342E86')
+          const line = dark ? { nature: '#BFD8C2', urban: '#BFD8C2', gardens: '#BFD8C2', water: '#C9D4E0' }[p.setting] || '#B39AE8' : ink
+          if (hasShape) {
+            placeMap.addSource('shape', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'Polygon', coordinates: [outlineGeo(p)] }, properties: {} } })
+            placeMap.addLayer({ id: 'shape-fill', type: 'fill', source: 'shape', paint: { 'fill-color': line, 'fill-opacity': 0.25 } })
+            placeMap.addLayer({ id: 'shape-line', type: 'line', source: 'shape', paint: { 'line-color': line, 'line-width': 2.5 } })
+          } else {
+            placeMap.addSource('pt', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'Point', coordinates: [p.lon, p.lat] }, properties: {} } })
+            placeMap.addLayer({ id: 'pt', type: 'circle', source: 'pt', paint: { 'circle-radius': 9, 'circle-color': dark ? '#B39AE8' : '#342E86', 'circle-stroke-color': dark ? '#17141F' : '#FEF2E2', 'circle-stroke-width': 3 } })
+          }
+        })
+      } catch { box.classList.add('where__map--off') }
+    })
+    return h('section', { class: 'where' },
+      h('h2', { class: 'label' }, s.whereTitle),
+      box,
+      h('p', { class: 'where__credit' }, '© OpenStreetMap · OpenFreeMap'))
+  }
+
   function renderPlace(id, cell) {
     const s = t()
     const p = state.data.places.find((x) => x.id === id)
@@ -841,26 +1034,28 @@
     const links = [
       p.website ? h('a', { class: 'pill-btn', href: p.website, rel: 'noopener noreferrer', target: '_blank' }, s.theirWebsite, svg(ICON.out, 14)) : null,
       h('a', { class: 'pill-btn pill-btn--soft', href: `https://www.openstreetmap.org/directions?to=${p.lat}%2C${p.lon}#map=15/${p.lat}/${p.lon}`, rel: 'noopener noreferrer', target: '_blank' }, s.directions, svg(ICON.out, 14)),
-      p.morePhotos ? h('a', { class: 'pill-btn pill-btn--soft', href: p.morePhotos, rel: 'noopener noreferrer', target: '_blank' }, s.morePhotos, svg(ICON.out, 14)) : null,
+      p.morePhotos && !p.gallery ? h('a', { class: 'pill-btn pill-btn--soft', href: p.morePhotos, rel: 'noopener noreferrer', target: '_blank' }, s.morePhotos, svg(ICON.out, 14)) : null,
     ]
     const fac = [
-      p.nearby.toilet ? h('span', { class: 'tag tag--facility tag--lg' }, h('b', null, 'WC'), s.toilet) : null,
-      p.nearby.water ? h('span', { class: 'tag tag--facility tag--lg' }, svg(ICON.drop, 12), s.waterTap) : null,
+      p.nearby.toilet ? h('span', { class: 'tag tag--facility tag--lg' }, art('toilet', 18), s.toilet) : null,
+      p.nearby.water ? h('span', { class: 'tag tag--facility tag--lg' }, art('tap', 18), s.waterTap) : null,
       p.nearby.benches ? h('span', { class: 'tag tag--lg' }, s.benches) : null,
-      p.nearby.shelter ? h('span', { class: 'tag tag--lg' }, s.shelter) : null,
+      p.nearby.shelter ? h('span', { class: 'tag tag--lg' }, art('shelter', 18), s.shelter) : null,
     ].filter(Boolean)
 
+    const hero = h('div', { class: 'hero' },
+      ph ? photoOr(h('img', { class: 'hero__img', src: ph.src, alt: '', width: ph.w, height: ph.h }), p.setting, 'hero__img', p) : placeholder(p.setting, 'hero__img', p),
+      h('a', { class: 'round-btn hero__back', href: '#/', 'aria-label': s.back, onclick: goBack }, svg(ICON.back)),
+      ph ? h('a', { class: 'hero__credit', href: ph.page, rel: 'noopener noreferrer', target: '_blank' }, s.photoBy(ph.by, ph.licence)) : null)
     return h('div', { class: 'page page--place' },
-      h('div', { class: 'hero' },
-        ph ? photoOr(h('img', { class: 'hero__img', src: ph.src, alt: '', width: ph.w, height: ph.h }), p.setting, 'hero__img', p) : placeholder(p.setting, 'hero__img', p),
-        h('a', { class: 'round-btn hero__back', href: '#/', 'aria-label': s.back, onclick: goBack }, svg(ICON.back)),
-        ph ? h('a', { class: 'hero__credit', href: ph.page, rel: 'noopener noreferrer', target: '_blank' }, s.photoBy(ph.by, ph.licence)) : null),
+      h('div', { class: 'place-media' }, hero, p.gallery ? gallery(p, hero) : null),
       h('div', { class: 'place' },
         h('p', { class: 'kicker' }, [kicker(p), p.fee ? s.fee : s.free].join(' · ')),
         h('h1', { class: 'place__name' }, p.name),
         p.ha ? h('p', { class: 'muted' }, s.sizeHa(p.ha)) : null,
         h('div', { class: 'links' }, links),
         fac.length ? h('div', { class: 'tags' }, fac) : null,
+        whereItIs(p),
         !ph ? h('p', { class: 'muted small' }, s.noPhoto, ' ', h('a', { href: 'https://commons.wikimedia.org/wiki/Special:UploadWizard', rel: 'noopener noreferrer', target: '_blank' }, s.addPhoto)) : null,
         state.dog ? placeDogCard(p) : null,
         h('div', { class: 'place__foot' },
@@ -978,6 +1173,7 @@
     // In the Both view the map and panel fill the screen, so the page itself doesn't scroll.
     document.body.classList.toggle('is-locked', onHome && state.view === 'both')
     if (onHome) {
+      dropPlaceMap()
       const wasAway = $('#home').hidden
       page.hidden = true
       fill(page)
@@ -989,6 +1185,7 @@
       return
     }
     fill($('#sheet-root'))
+    dropPlaceMap()
     const wasHome = !$('#home').hidden
     if (wasHome) { homeScroll = scrollY; panelScroll = $('#panel-body').scrollTop }
     const view = name === 'place' ? renderPlace(decodeURIComponent(arg || ''), arg2) : name === 'dog' ? renderDog() : name === 'about' ? renderAbout() : null

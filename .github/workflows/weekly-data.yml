@@ -55,6 +55,7 @@ jobs:
             nwr/leisure=park,nature_reserve,garden,bathing_place,swimming_area,dog_park \
             nwr/boundary=protected_area \
             nwr/tourism=viewpoint \
+            nwr/viewpoint=yes \
             nwr/place=square \
             w/highway=pedestrian \
             nwr/natural=beach \

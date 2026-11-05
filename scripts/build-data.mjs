@@ -52,6 +52,10 @@ const log = (msg) => console.log(`[${((Date.now() - T0) / 60000).toFixed(1)} min
 // The photo step gets at most this long; whatever isn't asked this week is asked next week.
 // 10 minutes keeps the weekly run under the 30-minute target in the scale-up plan (Ellen, 1 Nov).
 const PHOTO_BUDGET_MS = 10 * 60000
+// Small galleries (up to 5 more photos per place, from its Commons category; Ellen, 5 Nov):
+// their own budget, Gothenburg first, the rest filled in over the following weeks.
+const GALLERY_BUDGET_MS = 8 * 60000
+const GALLERY_SIZE = 5
 // What happened, written to data/report.json so problems are visible in the repo.
 const trail = []
 const report = { generated: new Date().toISOString(), source: 'Geofabrik Sweden extract (OpenStreetMap)', features: 0, landmarks: {}, trail }
@@ -174,7 +178,7 @@ function shape(g) {
   if (!inside({ lat, lon }, biggest)) [lat, lon] = [biggest[0].lat, biggest[0].lon]
   // The full outline isn't kept (all of Sweden's would fill the memory), only a small simplified
   // copy of the biggest part for the card picture.
-  return { lat, lon, m2: Math.max(m2, 0), box, ring: true, outline: outlineOf(biggest, lat0) }
+  return { lat, lon, m2: Math.max(m2, 0), box, ring: true, outline: outlineOf(biggest, lat0), obox: boxOf(biggest) }
 }
 
 // A card-sized outline: the ring simplified to at most OUTLINE_MAX points, scaled so its longer side
@@ -284,7 +288,9 @@ const isPrivate = (t) => /^(private|no|customers|permit)$/.test(t.access || '')
 function kindOf(t) {
   // A named hill or mountain top is only "A view" when it's also tagged as a viewpoint. Otherwise all of
   // Sweden's summits and forest hills would crowd out real lookouts (15,857 of 29,022 places, 1 Nov).
-  if ((t.natural === 'peak' || t.natural === 'hill') && t.tourism !== 'viewpoint') return null
+  // viewpoint=yes on the summit counts too: that's how Ramberget is mapped (checked 5 Nov).
+  if ((t.natural === 'peak' || t.natural === 'hill') && t.tourism !== 'viewpoint' && t.viewpoint !== 'yes') return null
+  if (t.natural === 'peak' || t.natural === 'hill') return 'viewpoint'
   if (t.landuse === 'recreation_ground') return 'park'
   if (t.amenity === 'library') return 'library'
   if (t.place === 'square' || (t.highway === 'pedestrian' && t.area === 'yes')) return 'square'
@@ -548,6 +554,59 @@ async function addPhotos(places) {
   trail.push(`photos: ${asked} requests to Wikimedia (${askQ.length} new Wikidata items, ${askF.length} new files)`)
   if (outOfTime()) trail.push('photos: stopped early to stay inside the time limit; the rest is asked next week')
   save()
+  await addGalleries(places, cache, save, stamp)
+}
+
+// Up to GALLERY_SIZE more openly licensed photos from each place's Commons category, each with its
+// credit, shown as a small strip on the place page. One request per category, cached for two months.
+async function addGalleries(places, cache, save, stamp) {
+  const start = Date.now()
+  cache.gal ||= {}
+  const withCat = places.filter((p) => p.category)
+  // Gothenburg first (public launch starts there), then the biggest places.
+  withCat.sort((a, b) => (inBox(b, LOCAL_DOG_AREA) - inBox(a, LOCAL_DOG_AREA)) || ((b.ha || 0) - (a.ha || 0)))
+  let asked = 0
+  for (const p of withCat) {
+    if (fresh(cache.gal[p.category])) continue
+    if (Date.now() - start > GALLERY_BUDGET_MS) break
+    try {
+      const res = await commonsApi({
+        action: 'query', generator: 'categorymembers', gcmtitle: p.category, gcmtype: 'file', gcmlimit: '15',
+        prop: 'imageinfo', iiprop: 'url|extmetadata|size|mime', iiurlwidth: '640', iiextmetadatafilter: 'Artist|LicenseShortName|LicenseUrl',
+      })
+      asked++
+      const items = []
+      for (const page of res.query?.pages || []) {
+        const ii = page.imageinfo?.[0]
+        if (!ii?.thumburl || !/^image\/(jpeg|png|webp)$/.test(ii.mime || '')) continue
+        if (ii.width < 400 || ii.height < 300) continue
+        const meta = ii.extmetadata || {}
+        const licence = plain(meta.LicenseShortName?.value)
+        if (!OPEN_LICENCE.test(licence)) continue
+        items.push({
+          file: page.title,
+          src: ii.thumburl.replace('https://upload.wikimedia.org/', '/photo/'),
+          w: ii.thumbwidth, h: ii.thumbheight,
+          by: plain(meta.Artist?.value).slice(0, 120) || 'Unknown photographer',
+          licence, licenceUrl: meta.LicenseUrl?.value || null,
+          page: ii.descriptionurl,
+        })
+      }
+      cache.gal[p.category] = { items: items.slice(0, GALLERY_SIZE + 1), t: stamp }
+      if (asked % 50 === 0) save()
+    } catch (e) {
+      console.warn(`Gallery ${p.category}: ${e.message}`)
+    }
+  }
+  let withGallery = 0
+  for (const p of withCat) {
+    const items = (cache.gal[p.category]?.items || []).filter((x) => x.file !== p.file && x.file !== p.file?.replace(/_/g, ' ')).slice(0, GALLERY_SIZE)
+    if (items.length) { p.gallery = items.map(({ file, ...rest }) => rest); withGallery++ }
+  }
+  save()
+  const left = withCat.filter((p) => !fresh(cache.gal[p.category])).length
+  trail.push(`galleries: ${withGallery} places with a gallery (${asked} new categories asked, ${left} left for later weeks)`)
+  log(`galleries done: ${withGallery} places, ${asked} asked, ${left} left`)
 }
 
 // ---------- dog rules ----------
@@ -650,6 +709,10 @@ async function main() {
       dogRule: dog ? dog.id : null,
       // The place's own shape for cards without a photo; libraries' outlines are just the building.
       outline: p.kind === 'library' ? null : p.outline || null,
+      // The outline's own corners [south, west, north, east], so the place page can draw it on a real map.
+      obox: p.kind === 'library' || !p.outline ? null : p.obox.map(round),
+      // How many extra photos its gallery file (gallery/<id>.json) holds; 0 means none.
+      gallery: p.gallery?.length || 0,
     }
   })
 
@@ -749,6 +812,8 @@ async function main() {
     writeFileSync(`${tmp}/${k}.json`, JSON.stringify(v))
   }
   writeFileSync(`${tmp}/index.json`, JSON.stringify(index))
+  mkdirSync(`${tmp}/gallery`, { recursive: true })
+  for (const p of places) if (p.gallery?.length) writeFileSync(`${tmp}/gallery/${p.e.type[0]}${p.e.id}.json`, JSON.stringify(p.gallery))
   mkdirSync(`${tmp}/search`, { recursive: true })
   for (const [k, v] of shards) writeFileSync(`${tmp}/search/${k}.json`, JSON.stringify(v))
   // The whole town list, only so a run without --towns can keep last week's towns.
