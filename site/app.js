@@ -182,9 +182,87 @@
     svg.append(poly)
     const s = t()
     const word = s.kindShort[p.kind] || s.settings[p.setting]
-    return h('div', { class: `outline outline--${p.setting} ${big ? 'outline--big' : ''} ${cls || ''}`, role: 'img', 'aria-label': s.outlineOf(p.name) },
+    const card = h('div', { class: `outline outline--${p.setting} ${big ? 'outline--big' : ''} ${cls || ''}`, role: 'img', 'aria-label': s.outlineOf(p.name) },
       svg,
       big ? h('span', { class: 'outline__label' }, settingIcon(p.setting, 14), word) : null)
+    if (/pcard__img/.test(cls || '') && Array.isArray(p.obox)) cardMap(p, card)
+    return card
+  }
+
+  // ---------- map pictures behind outline cards (5 Nov, an experiment on the preview) ----------
+  // One hidden map "photographs" each card's place: the real map with the shape drawn on it.
+  // Only cards on screen, only when the phone is idle, one at a time. A picture is drawn once and
+  // kept on this phone (Cache Storage), so parks that never change are never redrawn; a new shape,
+  // the other theme or a new map style gets a new picture. Until it's ready the plain outline shows.
+  const SNAP_W = 168, SNAP_H = 112, SNAP_VERSION = 'v1'
+  const snapUrls = new Map() // key -> object URL, for this visit
+  const snapQueue = []
+  let snapMap = null, snapBusy = false, snapCache = null
+  const snapKey = (p) => `${SNAP_VERSION}-${isDark() ? 'd' : 'l'}-${p.id}-${p.outline.length}-${p.outline.slice(2, 8).join('.')}`
+  const snapSeen = new IntersectionObserver((entries) => {
+    for (const e of entries) if (e.isIntersecting) { snapSeen.unobserve(e.target); snapQueue.push(e.target._snap); runSnaps() }
+  }, { rootMargin: '200px' })
+  function cardMap(p, card) {
+    const key = snapKey(p)
+    const show = (url) => { card.style.backgroundImage = `url("${url}")`; card.classList.add('outline--map') }
+    if (snapUrls.has(key)) { show(snapUrls.get(key)); return }
+    card._snap = { p, key, show }
+    // Already drawn on an earlier visit: straight from this phone's cache, no queue.
+    openSnapCache().then((c) => c && c.match('/card/' + key)).then(async (hit) => {
+      if (hit) { const url = URL.createObjectURL(await hit.blob()); snapUrls.set(key, url); show(url) }
+      else if (card.isConnected) snapSeen.observe(card)
+    }).catch(() => card.isConnected && snapSeen.observe(card))
+  }
+  const openSnapCache = () => (snapCache !== null ? Promise.resolve(snapCache) : (window.caches ? caches.open('ellenial-maps-cards').catch(() => false) : Promise.resolve(false)).then((c) => (snapCache = c)))
+  const idle = (fn) => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 1500 }) : setTimeout(fn, 60))
+  async function runSnaps() {
+    if (snapBusy || !snapQueue.length || !window.maplibregl) return
+    snapBusy = true
+    const job = snapQueue.shift()
+    try {
+      if (snapUrls.has(job.key)) { job.show(snapUrls.get(job.key)); return }
+      await openSnapCache()
+      await new Promise((ok) => idle(ok))
+      const blob = await drawSnap(job.p)
+      if (!blob) return
+      const url = URL.createObjectURL(blob)
+      snapUrls.set(job.key, url)
+      job.show(url)
+      if (snapCache) snapCache.put('/card/' + job.key, new Response(blob, { headers: { 'content-type': blob.type } })).catch(() => {})
+    } catch { /* keep the plain outline */ } finally {
+      snapBusy = false
+      if (snapQueue.length) runSnaps()
+    }
+  }
+  function drawSnap(p) {
+    return new Promise((resolve) => {
+      const dark = isDark()
+      if (!snapMap || snapMap._dark !== dark) {
+        snapMap?.remove()
+        const box = document.getElementById('snap-map') || document.body.appendChild(h('div', { id: 'snap-map', 'aria-hidden': 'true' }))
+        snapMap = new window.maplibregl.Map({
+          container: box, style: window.mapStyle(location.origin, dark), interactive: false, attributionControl: false,
+          pixelRatio: 2, fadeDuration: 0, canvasContextAttributes: { preserveDrawingBuffer: true },
+          transformRequest: (url) => ({ url: url.replace('https://tiles.openfreemap.org/', location.origin + '/ofm/') }),
+        })
+        snapMap._dark = dark
+        snapMap._ready = new Promise((ok) => snapMap.once('load', () => {
+          snapMap.addSource('shape', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+          const line = dark ? '#BFD8C2' : '#3E6B47'
+          snapMap.addLayer({ id: 'shape-fill', type: 'fill', source: 'shape', paint: { 'fill-color': line, 'fill-opacity': 0.28 } })
+          snapMap.addLayer({ id: 'shape-line', type: 'line', source: 'shape', paint: { 'line-color': line, 'line-width': 2 } })
+          ok()
+        }))
+      }
+      const m = snapMap
+      const timer = setTimeout(() => resolve(null), 8000)
+      m._ready.then(() => {
+        m.getSource('shape').setData({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [outlineGeo(p)] }, properties: {} })
+        m.fitBounds([[p.obox[1], p.obox[0]], [p.obox[3], p.obox[2]]], { padding: 14, maxZoom: 16, duration: 0 })
+        m.once('idle', () => { clearTimeout(timer); m.getCanvas().toBlob((b) => resolve(b), 'image/webp', 0.8) })
+        m.triggerRepaint()
+      })
+    })
   }
 
   // If a photo can't load, show the outline or placeholder instead of a broken image.

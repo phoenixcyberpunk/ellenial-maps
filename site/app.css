@@ -405,3 +405,9 @@ body.is-locked { overflow: hidden; overscroll-behavior: none; }
 .where__map--off { display: none; }
 .where__credit { margin: 6px 0 0; font-size: 11px; color: var(--muted); }
 @media (min-width: 900px) { .where__map { height: 260px; } }
+
+/* Map pictures behind outline cards (experiment, 5 Nov 2026): the hidden map that draws them,
+   and the card once its picture is ready (the shape is in the picture, so the drawn one hides). */
+#snap-map { position: fixed; left: -10000px; top: 0; width: 168px; height: 112px; pointer-events: none; }
+.outline--map { background-size: cover; background-position: center; }
+.outline--map .outline__shape { display: none; }
