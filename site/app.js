@@ -417,7 +417,8 @@
     type: 'search', class: 'search__input', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', enterkeyhint: 'search',
     onfocus: () => openSearch(),
     oninput: (e) => { search.q = e.target.value; renderResults() },
-    onkeydown: (e) => { if (e.key === 'Escape') closeSearch() },
+    // Enter / the keyboard's search key closes the keyboard so the results are in view.
+    onkeydown: (e) => { if (e.key === 'Escape') closeSearch(); else if (e.key === 'Enter') { e.preventDefault(); searchInput.blur() } },
   })
 
   function searchRow() {
@@ -493,8 +494,8 @@
     if (!search.open) return
     const s = t()
     const q = fold(search.q.trim())
-    const privacy = h('p', { class: 'search-note' }, s.searchPrivacy)
-    if (q.length < 2) return fill(box, h('p', { class: 'search-hint' }, s.searchHint), privacy)
+    // No explanation text (Ellen, 5 Nov): an empty field shows nothing until two letters are typed.
+    if (q.length < 2) return fill(box)
     const key = shardKey(q)
     loadShard(key)
     const part = shards.get(key)
@@ -530,8 +531,7 @@
           h('span', { class: 'sresult__icon sresult__icon--town' }, settingIcon('town', 20)),
           h('span', { class: 'sresult__text' },
             h('span', { class: 'sresult__name' }, marked(x.name, m.at, len)),
-            h('span', { class: 'sresult__meta' }, s.townKind(x.type, x.near)))))] : null,
-      privacy)
+            h('span', { class: 'sresult__meta' }, s.townKind(x.type, x.near)))))] : null)
   }
 
   async function pickPlace(p) {
@@ -600,7 +600,10 @@
     panel.style.setProperty('--y', `${y ?? snapY(state.snap)}px`)
     $('.sheet__handle')?.setAttribute('aria-expanded', String(state.snap !== 'peek'))
   }
-  const panelCover = () => (state.view === 'both' ? $('#stage').clientHeight - snapY(state.snap) : 0)
+  // On computers (900 px and wider, like ellenial weather) the list sits beside the map instead of over it.
+  const wide = window.matchMedia('(min-width: 900px)')
+  wide.addEventListener?.('change', () => { if (map) requestAnimationFrame(() => map.resize()) })
+  const panelCover = () => (state.view === 'both' && !wide.matches ? $('#stage').clientHeight - snapY(state.snap) : 0)
 
   function setupPanel() {
     const head = $('#panel-head')
@@ -825,6 +828,46 @@
   }
 
   // ---------- a place ----------
+  // ---------- a small gallery (Ellen, 5 Nov): up to 5 more photos from the place's Commons
+  // category, fetched weekly with their credits (gallery/<id>.json). Tapping one shows it big with
+  // its own credit; the arrows step through them; the last tile leads to all photos on Commons.
+  const galleries = new Map()
+  function gallery(p, hero) {
+    const s = t()
+    const strip = h('div', { class: 'gallery', role: 'group', 'aria-label': s.galleryLabel })
+    const show = (photos, i) => {
+      const ph = photos[i]
+      hero.querySelector('.hero__img')?.replaceWith(photoOr(h('img', { class: 'hero__img', src: ph.src, alt: '', width: ph.w, height: ph.h }), p.setting, 'hero__img', p))
+      hero.querySelector('.hero__credit')?.remove()
+      hero.append(h('a', { class: 'hero__credit', href: ph.page, rel: 'noopener noreferrer', target: '_blank' }, s.photoBy(ph.by, ph.licence)))
+      strip.querySelectorAll('.gallery__thumb').forEach((b, j) => b.setAttribute('aria-pressed', String(j === i)))
+      strip.querySelectorAll('.gallery__thumb')[i]?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
+      const count = hero.querySelector('.hero__count')
+      if (count) count.textContent = `${i + 1} / ${photos.length}`
+      strip.dataset.at = i
+    }
+    const build = (extra) => {
+      const photos = [p.photo, ...extra].filter(Boolean)
+      if (photos.length < 2) return
+      fill(strip,
+        photos.map((ph, i) => h('button', { type: 'button', class: 'gallery__thumb', 'aria-pressed': String(i === 0), 'aria-label': s.galleryShow(i + 1, photos.length), onclick: () => show(photos, i) },
+          h('img', { src: ph.src, alt: '', loading: 'lazy', width: 96, height: 72 }))),
+        p.morePhotos ? h('a', { class: 'gallery__more', href: p.morePhotos, rel: 'noopener noreferrer', target: '_blank' }, s.galleryAll, svg(ICON.out, 14)) : null)
+      strip.dataset.at = 0
+      const step = (d) => show(photos, (Number(strip.dataset.at) + d + photos.length) % photos.length)
+      hero.append(h('div', { class: 'hero__steps' },
+        h('button', { type: 'button', class: 'hero__step', 'aria-label': s.galleryPrev, onclick: () => step(-1) }, svg(ICON.back, 18)),
+        h('span', { class: 'hero__count', 'aria-live': 'polite' }, `1 / ${photos.length}`),
+        h('button', { type: 'button', class: 'hero__step', 'aria-label': s.galleryNext, onclick: () => step(1) }, svg(ICON.next, 18))))
+    }
+    if (galleries.has(p.id)) build(galleries.get(p.id))
+    else fetch(`/data/sweden/gallery/${encodeURIComponent(p.id)}.json`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list) => { galleries.set(p.id, list); build(list) })
+      .catch(() => {})
+    return strip
+  }
+
   function renderPlace(id, cell) {
     const s = t()
     const p = state.data.places.find((x) => x.id === id)
@@ -841,7 +884,7 @@
     const links = [
       p.website ? h('a', { class: 'pill-btn', href: p.website, rel: 'noopener noreferrer', target: '_blank' }, s.theirWebsite, svg(ICON.out, 14)) : null,
       h('a', { class: 'pill-btn pill-btn--soft', href: `https://www.openstreetmap.org/directions?to=${p.lat}%2C${p.lon}#map=15/${p.lat}/${p.lon}`, rel: 'noopener noreferrer', target: '_blank' }, s.directions, svg(ICON.out, 14)),
-      p.morePhotos ? h('a', { class: 'pill-btn pill-btn--soft', href: p.morePhotos, rel: 'noopener noreferrer', target: '_blank' }, s.morePhotos, svg(ICON.out, 14)) : null,
+      p.morePhotos && !p.gallery ? h('a', { class: 'pill-btn pill-btn--soft', href: p.morePhotos, rel: 'noopener noreferrer', target: '_blank' }, s.morePhotos, svg(ICON.out, 14)) : null,
     ]
     const fac = [
       p.nearby.toilet ? h('span', { class: 'tag tag--facility tag--lg' }, h('b', null, 'WC'), s.toilet) : null,
@@ -850,11 +893,12 @@
       p.nearby.shelter ? h('span', { class: 'tag tag--lg' }, s.shelter) : null,
     ].filter(Boolean)
 
+    const hero = h('div', { class: 'hero' },
+      ph ? photoOr(h('img', { class: 'hero__img', src: ph.src, alt: '', width: ph.w, height: ph.h }), p.setting, 'hero__img', p) : placeholder(p.setting, 'hero__img', p),
+      h('a', { class: 'round-btn hero__back', href: '#/', 'aria-label': s.back, onclick: goBack }, svg(ICON.back)),
+      ph ? h('a', { class: 'hero__credit', href: ph.page, rel: 'noopener noreferrer', target: '_blank' }, s.photoBy(ph.by, ph.licence)) : null)
     return h('div', { class: 'page page--place' },
-      h('div', { class: 'hero' },
-        ph ? photoOr(h('img', { class: 'hero__img', src: ph.src, alt: '', width: ph.w, height: ph.h }), p.setting, 'hero__img', p) : placeholder(p.setting, 'hero__img', p),
-        h('a', { class: 'round-btn hero__back', href: '#/', 'aria-label': s.back, onclick: goBack }, svg(ICON.back)),
-        ph ? h('a', { class: 'hero__credit', href: ph.page, rel: 'noopener noreferrer', target: '_blank' }, s.photoBy(ph.by, ph.licence)) : null),
+      h('div', { class: 'place-media' }, hero, p.gallery ? gallery(p, hero) : null),
       h('div', { class: 'place' },
         h('p', { class: 'kicker' }, [kicker(p), p.fee ? s.fee : s.free].join(' · ')),
         h('h1', { class: 'place__name' }, p.name),
