@@ -335,6 +335,12 @@ const website = (t) => {
 // ---------- photos (Wikimedia Commons) ----------
 
 const plain = (html) => (html || '').replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/\s+/g, ' ').trim()
+// Photos are served through this site (/photo/ and /thumb/, see vercel.json) so phones never talk
+// to Wikimedia. Wikimedia moved thumbnails to thumb.wikimedia.org (Nov 2026) and added utm_ tags;
+// both hosts are mapped and the tags dropped.
+const ownPhotoUrl = (u) => (u || '').split('?')[0]
+  .replace('https://upload.wikimedia.org/', '/photo/')
+  .replace('https://thumb.wikimedia.org/', '/thumb/')
 const OPEN_LICENCE = /^(cc|public domain|pd|cc0|gfdl|attribution|free art)/i
 
 async function commonsApi(params) {
@@ -522,7 +528,7 @@ async function addPhotos(places) {
         const licence = plain(meta.LicenseShortName?.value)
         if (!OPEN_LICENCE.test(licence)) continue
         const record = {
-          src: ii.thumburl.replace('https://upload.wikimedia.org/', '/photo/'),
+          src: ownPhotoUrl(ii.thumburl),
           w: ii.thumbwidth, h: ii.thumbheight,
           by: plain(meta.Artist?.value).slice(0, 120) || 'Unknown photographer',
           licence, licenceUrl: meta.LicenseUrl?.value || null,
