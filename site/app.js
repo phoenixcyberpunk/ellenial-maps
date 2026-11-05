@@ -875,6 +875,58 @@
     return strip
   }
 
+  // ---------- "Where it is": a small real map on the place page with the place's own shape
+  // (Ellen, 5 Nov: cheap context for the outline cards). The outline is stored scaled to its own
+  // corners (obox), so it can be put back on the map. One small map, removed when the page closes.
+  let placeMap = null
+  function dropPlaceMap() { if (placeMap) { placeMap.remove(); placeMap = null } }
+  function outlineGeo(p) {
+    const [w, hh, ...xy] = p.outline
+    const [south, west, north, east] = p.obox
+    const lat0 = (south + north) / 2
+    const kLat = 111320, kLon = 111320 * Math.cos((lat0 * Math.PI) / 180)
+    const span = Math.max((east - west) * kLon, (north - south) * kLat)
+    const ring = []
+    for (let i = 0; i + 1 < xy.length; i += 2) ring.push([west + (xy[i] / 100) * span / kLon, north - (xy[i + 1] / 100) * span / kLat])
+    ring.push(ring[0])
+    return ring
+  }
+  function whereItIs(p) {
+    const s = t()
+    if (!window.maplibregl) return null
+    const box = h('div', { class: 'where__map', role: 'img', 'aria-label': s.whereLabel(p.name) })
+    requestAnimationFrame(() => {
+      if (!box.isConnected) return
+      dropPlaceMap()
+      try {
+        const dark = isDark()
+        const hasShape = Array.isArray(p.outline) && Array.isArray(p.obox)
+        placeMap = new window.maplibregl.Map({
+          container: box, style: window.mapStyle(location.origin, dark), interactive: false, attributionControl: false,
+          center: [p.lon, p.lat], zoom: 15,
+          transformRequest: (url) => ({ url: url.replace('https://tiles.openfreemap.org/', location.origin + '/ofm/') }),
+        })
+        if (hasShape) placeMap.fitBounds([[p.obox[1], p.obox[0]], [p.obox[3], p.obox[2]]], { padding: 28, maxZoom: 16, duration: 0 })
+        placeMap.on('load', () => {
+          const ink = { nature: '#4F8A5B', urban: '#4F8A5B', gardens: '#4F8A5B', water: '#3D6F8A' }[p.setting] || (dark ? '#B39AE8' : '#342E86')
+          const line = dark ? { nature: '#BFD8C2', urban: '#BFD8C2', gardens: '#BFD8C2', water: '#C9D4E0' }[p.setting] || '#B39AE8' : ink
+          if (hasShape) {
+            placeMap.addSource('shape', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'Polygon', coordinates: [outlineGeo(p)] }, properties: {} } })
+            placeMap.addLayer({ id: 'shape-fill', type: 'fill', source: 'shape', paint: { 'fill-color': line, 'fill-opacity': 0.25 } })
+            placeMap.addLayer({ id: 'shape-line', type: 'line', source: 'shape', paint: { 'line-color': line, 'line-width': 2.5 } })
+          } else {
+            placeMap.addSource('pt', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'Point', coordinates: [p.lon, p.lat] }, properties: {} } })
+            placeMap.addLayer({ id: 'pt', type: 'circle', source: 'pt', paint: { 'circle-radius': 9, 'circle-color': dark ? '#B39AE8' : '#342E86', 'circle-stroke-color': dark ? '#17141F' : '#FEF2E2', 'circle-stroke-width': 3 } })
+          }
+        })
+      } catch { box.classList.add('where__map--off') }
+    })
+    return h('section', { class: 'where' },
+      h('h2', { class: 'label' }, s.whereTitle),
+      box,
+      h('p', { class: 'where__credit' }, '© OpenStreetMap · OpenFreeMap'))
+  }
+
   function renderPlace(id, cell) {
     const s = t()
     const p = state.data.places.find((x) => x.id === id)
@@ -912,6 +964,7 @@
         p.ha ? h('p', { class: 'muted' }, s.sizeHa(p.ha)) : null,
         h('div', { class: 'links' }, links),
         fac.length ? h('div', { class: 'tags' }, fac) : null,
+        whereItIs(p),
         !ph ? h('p', { class: 'muted small' }, s.noPhoto, ' ', h('a', { href: 'https://commons.wikimedia.org/wiki/Special:UploadWizard', rel: 'noopener noreferrer', target: '_blank' }, s.addPhoto)) : null,
         state.dog ? placeDogCard(p) : null,
         h('div', { class: 'place__foot' },
@@ -1029,6 +1082,7 @@
     // In the Both view the map and panel fill the screen, so the page itself doesn't scroll.
     document.body.classList.toggle('is-locked', onHome && state.view === 'both')
     if (onHome) {
+      dropPlaceMap()
       const wasAway = $('#home').hidden
       page.hidden = true
       fill(page)
@@ -1040,6 +1094,7 @@
       return
     }
     fill($('#sheet-root'))
+    dropPlaceMap()
     const wasHome = !$('#home').hidden
     if (wasHome) { homeScroll = scrollY; panelScroll = $('#panel-body').scrollTop }
     const view = name === 'place' ? renderPlace(decodeURIComponent(arg || ''), arg2) : name === 'dog' ? renderDog() : name === 'about' ? renderAbout() : null

@@ -178,7 +178,7 @@ function shape(g) {
   if (!inside({ lat, lon }, biggest)) [lat, lon] = [biggest[0].lat, biggest[0].lon]
   // The full outline isn't kept (all of Sweden's would fill the memory), only a small simplified
   // copy of the biggest part for the card picture.
-  return { lat, lon, m2: Math.max(m2, 0), box, ring: true, outline: outlineOf(biggest, lat0) }
+  return { lat, lon, m2: Math.max(m2, 0), box, ring: true, outline: outlineOf(biggest, lat0), obox: boxOf(biggest) }
 }
 
 // A card-sized outline: the ring simplified to at most OUTLINE_MAX points, scaled so its longer side
@@ -703,6 +703,8 @@ async function main() {
       dogRule: dog ? dog.id : null,
       // The place's own shape for cards without a photo; libraries' outlines are just the building.
       outline: p.kind === 'library' ? null : p.outline || null,
+      // The outline's own corners [south, west, north, east], so the place page can draw it on a real map.
+      obox: p.kind === 'library' || !p.outline ? null : p.obox.map(round),
       // How many extra photos its gallery file (gallery/<id>.json) holds; 0 means none.
       gallery: p.gallery?.length || 0,
     }
