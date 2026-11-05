@@ -288,7 +288,9 @@ const isPrivate = (t) => /^(private|no|customers|permit)$/.test(t.access || '')
 function kindOf(t) {
   // A named hill or mountain top is only "A view" when it's also tagged as a viewpoint. Otherwise all of
   // Sweden's summits and forest hills would crowd out real lookouts (15,857 of 29,022 places, 1 Nov).
-  if ((t.natural === 'peak' || t.natural === 'hill') && t.tourism !== 'viewpoint') return null
+  // viewpoint=yes on the summit counts too: that's how Ramberget is mapped (checked 5 Nov).
+  if ((t.natural === 'peak' || t.natural === 'hill') && t.tourism !== 'viewpoint' && t.viewpoint !== 'yes') return null
+  if (t.natural === 'peak' || t.natural === 'hill') return 'viewpoint'
   if (t.landuse === 'recreation_ground') return 'park'
   if (t.amenity === 'library') return 'library'
   if (t.place === 'square' || (t.highway === 'pedestrian' && t.area === 'yes')) return 'square'

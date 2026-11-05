@@ -736,6 +736,12 @@
             'symbol-sort-key': ['get', 'rank'],
           },
         })
+        // The selected place's name beside its pin, so it's clear what was tapped (Ellen, 5 Nov).
+        map.addLayer({
+          id: 'em-sel-label', type: 'symbol', source: 'em-places', filter: ['==', ['get', 'id'], ''],
+          layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Regular'], 'text-size': 15, 'text-anchor': 'left', 'text-offset': [1.9, 0], 'text-max-width': 14, 'text-allow-overlap': true, 'text-ignore-placement': true },
+          paint: { 'text-color': dark ? '#F3EEF8' : '#1F1A2E', 'text-halo-color': dark ? '#17141F' : '#FEF2E2', 'text-halo-width': 2.5 },
+        })
         map.addLayer({ id: 'em-me', type: 'circle', source: 'em-me', paint: { 'circle-radius': 7, 'circle-color': dark ? '#F3EEF8' : '#1F1A2E', 'circle-stroke-color': dark ? '#17141F' : '#FEF2E2', 'circle-stroke-width': 3 } })
         mapReady = true
         updateMap(visible())
@@ -794,8 +800,9 @@
     if (!map || !mapReady) return
     const d = state.data
     // The selected pin is drawn last so it sits on top.
-    map.getSource('em-places').setData(fc(list.map((x) => x.p), (p) => ({ id: p.id, setting: p.setting, rank: p.id === state.sel ? 1 : 0 })))
+    map.getSource('em-places').setData(fc(list.map((x) => x.p), (p) => ({ id: p.id, setting: p.setting, name: p.name, rank: p.id === state.sel ? 1 : 0 })))
     map.setFilter('em-sel', ['==', ['get', 'id'], state.sel || ''])
+    map.setFilter('em-sel-label', ['==', ['get', 'id'], state.sel || ''])
     map.getSource('em-toilets').setData(fc(d.toilets))
     map.getSource('em-water').setData(fc(d.water))
     map.getSource('em-dogparks').setData(fc(state.dog ? d.dogParks : []))
