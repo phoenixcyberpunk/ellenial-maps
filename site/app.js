@@ -140,7 +140,9 @@
     h('span', { class: 'switch', 'aria-hidden': 'true' }, h('span', { class: 'switch__knob' })))
   }
 
-  // Ellen's own hand-drawn icons (5 Nov), in site/art/ as <name>-light.png and <name>-dark.png
+  // Ellen's own hand-drawn icons (5 Nov), in site/art/ as <name>-light.png, used as drawn in both themes
+  // (decided 5 Nov: on dark surfaces the outline melts away and the fills carry the shape, like Weather;
+  // the -dark copies and paw-halo are unused).
   // (made by scripts/make-art.py). Anything not drawn yet keeps its Lucide icon from icons.js.
   const ART = new Set(['nature', 'water', 'urban', 'squares', 'gardens', 'view', 'libraries', 'toilet', 'tap', 'dogrun', 'town', 'shelter', 'paw'])
   const art = (name, size) => h('span', { class: `art art--${name}`, style: `width:${size}px;height:${size}px`, 'aria-hidden': 'true' })
@@ -764,7 +766,7 @@
       const d = Math.round(S * (drawn ? 0.68 : 0.54))
       img.onload = () => { g.drawImage(img, (S - d) / 2, (S - d) / 2, d, d); resolve([id, g.getImageData(0, 0, S, S)]) }
       img.onerror = () => resolve([id, g.getImageData(0, 0, S, S)])
-      if (drawn) { img.src = `/art/${key}-${dark ? 'dark' : 'light'}.png`; return }
+      if (drawn) { img.src = `/art/${key}-light.png`; return }
       const inner = (window.EM_ICONS || {})[key]
       if (!inner) return resolve([id, g.getImageData(0, 0, S, S)])
       const svgText = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${iconInk}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`
