@@ -142,7 +142,7 @@
 
   // Ellen's own hand-drawn icons (5 Nov), in site/art/ as <name>-light.png and <name>-dark.png
   // (made by scripts/make-art.py). Anything not drawn yet keeps its Lucide icon from icons.js.
-  const ART = new Set(['nature', 'water', 'urban', 'squares', 'view', 'toilet', 'tap', 'dogrun', 'town', 'shelter', 'paw'])
+  const ART = new Set(['nature', 'water', 'urban', 'squares', 'gardens', 'view', 'libraries', 'toilet', 'tap', 'dogrun', 'town', 'shelter', 'paw'])
   const art = (name, size) => h('span', { class: `art art--${name}`, style: `width:${size}px;height:${size}px`, 'aria-hidden': 'true' })
 
   // The setting's icon: Ellen's drawing when there is one, else from icons.js (our own build file).

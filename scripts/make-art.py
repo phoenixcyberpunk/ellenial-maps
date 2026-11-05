@@ -21,6 +21,8 @@ MAP = {  # source file -> (asset name, swap ink in dark mode?)
     'IMG_0542.png': ('paw', False),      # plain paw: dog mode, light
     'IMG_0543.png': ('paw-halo', False), # paw with cream halo: dog mode, dark
     'IMG_0544.png': ('dogrun', False),   # framed paw: dog run
+    'IMG_0545.png': ('libraries', True), # red book
+    'IMG_0546.png': ('gardens', True),   # flower
 }
 SIZE = 192
 DARK_INK = (0xF3, 0xEE, 0xF8)  # --ink in the dark palette
