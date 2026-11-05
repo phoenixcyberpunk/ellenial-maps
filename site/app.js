@@ -135,12 +135,19 @@
       class: 'dog-switch' + (withHint ? ' dog-switch--row' : ''), 'aria-pressed': String(state.dog), type: 'button',
       onclick: () => { state.dog = !state.dog; store.set('dog', state.dog); render() },
     },
+    art('paw', withHint ? 24 : 18),
     withHint ? h('span', { class: 'dog-switch__text' }, h('span', { class: 'dog-switch__label' }, s.dogSwitchLong), h('span', { class: 'dog-switch__hint' }, s.dogSwitchHint)) : s.dogSwitch,
     h('span', { class: 'switch', 'aria-hidden': 'true' }, h('span', { class: 'switch__knob' })))
   }
 
-  // The setting's icon (from icons.js, our own build file) as an SVG element.
+  // Ellen's own hand-drawn icons (5 Nov), in site/art/ as <name>-light.png and <name>-dark.png
+  // (made by scripts/make-art.py). Anything not drawn yet keeps its Lucide icon from icons.js.
+  const ART = new Set(['nature', 'water', 'urban', 'squares', 'view', 'toilet', 'tap', 'dogrun', 'town', 'shelter', 'paw'])
+  const art = (name, size) => h('span', { class: `art art--${name}`, style: `width:${size}px;height:${size}px`, 'aria-hidden': 'true' })
+
+  // The setting's icon: Ellen's drawing when there is one, else from icons.js (our own build file).
   function settingIcon(setting, size) {
+    if (ART.has(setting)) return art(setting, size)
     const inner = (window.EM_ICONS || {})[setting]
     if (!inner) return null
     const doc = new DOMParser().parseFromString(`<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`, 'image/svg+xml')
@@ -149,9 +156,10 @@
 
   // Legend entry: the same disc and icon as the pin on the map.
   function legendDot(kind, icon) {
-    const dot = h('span', { class: 'dot dot--' + kind, 'aria-hidden': 'true' })
-    const svg = settingIcon(icon, 11)
-    if (svg) { svg.setAttribute('stroke-width', '2.6'); dot.append(svg) }
+    const drawn = ART.has(icon)
+    const dot = h('span', { class: 'dot dot--' + (drawn ? 'art' : kind), 'aria-hidden': 'true' })
+    const svg = settingIcon(icon, drawn ? 14 : 11)
+    if (svg) { if (!drawn) svg.setAttribute('stroke-width', '2.6'); dot.append(svg) }
     return dot
   }
 
@@ -184,7 +192,7 @@
     const word = s.kindShort[p.kind] || s.settings[p.setting]
     const card = h('div', { class: `outline outline--${p.setting} ${big ? 'outline--big' : ''} ${cls || ''}`, role: 'img', 'aria-label': s.outlineOf(p.name) },
       svg,
-      big ? h('span', { class: 'outline__label' }, settingIcon(p.setting, 14), word) : null)
+      big ? h('span', { class: 'outline__label' }, settingIcon(p.setting, 16), word) : null)
     if (/pcard__img/.test(cls || '') && Array.isArray(p.obox)) cardMap(p, card)
     return card
   }
@@ -746,15 +754,20 @@
     pinCache[dark] = Promise.all(jobs.map(([id, key, fill, iconInk, S]) => new Promise((resolve) => {
       const c = document.createElement('canvas'); c.width = S; c.height = S
       const g = c.getContext('2d')
+      const drawn = ART.has(key)
+      // Ellen's drawings carry their own colours, so they sit on a calm paper disc (dark: a dark
+      // disc) with a brand ring; the Lucide ones keep the coloured disc with a white line icon.
       g.beginPath(); g.arc(S / 2, S / 2, S / 2 - 3, 0, Math.PI * 2)
-      g.fillStyle = fill; g.fill(); g.lineWidth = 4; g.strokeStyle = ring; g.stroke()
+      g.fillStyle = drawn ? (dark ? '#221E2C' : '#FFFBF5') : fill; g.fill()
+      g.lineWidth = drawn ? 3 : 4; g.strokeStyle = drawn ? (dark ? '#B39AE8' : '#342E86') : ring; g.stroke()
+      const img = new Image()
+      const d = Math.round(S * (drawn ? 0.68 : 0.54))
+      img.onload = () => { g.drawImage(img, (S - d) / 2, (S - d) / 2, d, d); resolve([id, g.getImageData(0, 0, S, S)]) }
+      img.onerror = () => resolve([id, g.getImageData(0, 0, S, S)])
+      if (drawn) { img.src = `/art/${key}-${dark ? 'dark' : 'light'}.png`; return }
       const inner = (window.EM_ICONS || {})[key]
       if (!inner) return resolve([id, g.getImageData(0, 0, S, S)])
       const svgText = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${iconInk}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`
-      const img = new Image()
-      const d = Math.round(S * 0.54)
-      img.onload = () => { g.drawImage(img, (S - d) / 2, (S - d) / 2, d, d); resolve([id, g.getImageData(0, 0, S, S)]) }
-      img.onerror = () => resolve([id, g.getImageData(0, 0, S, S)])
       img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgText)
     })))
     return pinCache[dark]
@@ -1024,10 +1037,10 @@
       p.morePhotos && !p.gallery ? h('a', { class: 'pill-btn pill-btn--soft', href: p.morePhotos, rel: 'noopener noreferrer', target: '_blank' }, s.morePhotos, svg(ICON.out, 14)) : null,
     ]
     const fac = [
-      p.nearby.toilet ? h('span', { class: 'tag tag--facility tag--lg' }, h('b', null, 'WC'), s.toilet) : null,
-      p.nearby.water ? h('span', { class: 'tag tag--facility tag--lg' }, svg(ICON.drop, 12), s.waterTap) : null,
+      p.nearby.toilet ? h('span', { class: 'tag tag--facility tag--lg' }, art('toilet', 18), s.toilet) : null,
+      p.nearby.water ? h('span', { class: 'tag tag--facility tag--lg' }, art('tap', 18), s.waterTap) : null,
       p.nearby.benches ? h('span', { class: 'tag tag--lg' }, s.benches) : null,
-      p.nearby.shelter ? h('span', { class: 'tag tag--lg' }, s.shelter) : null,
+      p.nearby.shelter ? h('span', { class: 'tag tag--lg' }, art('shelter', 18), s.shelter) : null,
     ].filter(Boolean)
 
     const hero = h('div', { class: 'hero' },

@@ -6,7 +6,8 @@
 //   as /data/sweden/. Before the first run it falls back to data/sample/ so the page still builds.
 import { cpSync, mkdirSync, rmSync, copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 
-// One person-made, openly licensed icon per setting, from Lucide (ISC licence, credited on the
+// Ellen's own drawings live in site/art/ (see scripts/make-art.py) and take over in app.js where they exist.
+// Otherwise one person-made, openly licensed icon per setting, from Lucide (ISC licence, credited on the
 // About page). Written into /icons.js so the map pins and placeholders need no extra requests.
 const ICONS = { nature: 'trees', water: 'waves', urban: 'tree-deciduous', squares: 'landmark', gardens: 'flower-2', view: 'binoculars', libraries: 'book-open',
   // Small map pins for the facilities, so they never rely on colour alone (Ellenial accessibility rule).
