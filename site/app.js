@@ -1124,6 +1124,11 @@
   // toilets, water taps and dog runs. Squares load around you (for the sections) and for what
   // the map shows, so a phone never downloads all of Sweden.
   const { cellOf, cellsIn } = window.EllenialCells
+  // Photos always come through this site (/photo/, /thumb/), never straight from Wikimedia, and
+  // without the utm_ tags Wikimedia adds (Nov 2026). Data from before the fix gets mapped here.
+  const ownPhoto = (u) => (u || '').split('?')[0]
+    .replace('https://upload.wikimedia.org/', '/photo/')
+    .replace('https://thumb.wikimedia.org/', '/thumb/')
   const loadedCells = new Map() // key -> 'loading' | 'done'
   const placeIds = new Set()
   const placeHref = (p) => `#/place/${p.id}/${cellOf(p.lat, p.lon)}`
@@ -1144,7 +1149,7 @@
     }))
     const d = state.data
     for (const part of parts.filter(Boolean)) {
-      for (const p of part.places) if (!placeIds.has(p.id)) { placeIds.add(p.id); d.places.push(p) }
+      for (const p of part.places) if (!placeIds.has(p.id)) { placeIds.add(p.id); if (p.photo) p.photo.src = ownPhoto(p.photo.src); d.places.push(p) }
       d.toilets.push(...part.toilets); d.water.push(...part.water); d.dogParks.push(...part.dogParks)
     }
     // How far each place is from the closest dog run, for the "Good with a dog" section.
