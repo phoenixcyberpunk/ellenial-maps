@@ -1,7 +1,7 @@
 {
- "generated": "2026-11-01T18:48:12.634Z",
+ "generated": "2026-11-05T08:15:30.272Z",
  "source": "Geofabrik Sweden extract (OpenStreetMap)",
- "features": 137719,
+ "features": 137856,
  "landmarks": {
   "Slottsskogen": true,
   "Delsjö": true,
@@ -17,51 +17,51 @@
   "Stadsparken": true
  },
  "trail": [
-  "read 137719 features from work/area.geojsonseq",
-  "13713 places after merging twins",
-  "wikidata protected area: 2183 with photos",
-  "wikidata park: 644 with photos",
+  "read 137856 features from work/area.geojsonseq",
+  "13764 places after merging twins",
+  "wikidata protected area: 2175 with photos",
+  "wikidata park: 645 with photos",
   "wikidata beach: 26 with photos",
   "wikidata square: 333 with photos",
   "wikidata garden: 215 with photos",
   "wikidata library: 154 with photos",
   "wikidata viewpoint: 20 with photos",
-  "photos: 285 matched to Wikidata by name and location (3056 names)",
-  "photos: 28 from photos taken at the place (330 new lookups, 3442 places still to check in later weeks)",
-  "photos: 331 requests to Wikimedia (0 new Wikidata items, 2 new files)",
+  "photos: 266 matched to Wikidata by name and location (3051 names)",
+  "photos: 46 from photos taken at the place (733 new lookups, 3082 places still to check in later weeks)",
+  "photos: 738 requests to Wikimedia (129 new Wikidata items, 24 new files)",
   "photos: stopped early to stay inside the time limit; the rest is asked next week"
  ],
  "counts": {
-  "places": 13713,
+  "places": 13764,
   "bySetting": {
-   "nature": 6739,
-   "water": 1698,
+   "nature": 6791,
+   "water": 1697,
    "urban": 3264,
    "gardens": 193,
    "squares": 612,
    "libraries": 665,
    "view": 542
   },
-  "withPhoto": 2853,
+  "withPhoto": 2873,
   "photoFrom": {
-   "linked": 2540,
-   "wikidata-match": 285,
-   "nearby": 28
+   "linked": 2562,
+   "wikidata-match": 266,
+   "nearby": 45
   },
-  "withoutPhoto": 10860,
+  "withoutPhoto": 10891,
   "withoutPhotoBySetting": {
-   "nature": 4695,
-   "urban": 2929,
-   "water": 1520,
+   "nature": 4728,
+   "urban": 2928,
+   "water": 1519,
    "gardens": 171,
    "squares": 475,
    "libraries": 577,
    "view": 493
   },
-  "toilets": 7416,
+  "toilets": 7415,
   "water": 984,
   "dogParks": 1113,
   "squares": 705
  },
- "seconds": 604
+ "seconds": 605
 }
