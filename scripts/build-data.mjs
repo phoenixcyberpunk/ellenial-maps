@@ -101,6 +101,9 @@ async function* readFeatures(path) {
 // For search (decided 5 Nov 2026): phones search a small name list on their own, so nothing anyone
 // types is ever sent anywhere. Towns come from OpenStreetMap's place=* points. A city area or
 // village also gets the nearest bigger town, so "Slottsstaden" reads "Area in Göteborg".
+// Same folding and word split as the app (site/app.js), so the parts line up with what is typed.
+const fold = (x) => x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+const searchKeys = (name) => fold(name).split(/[\s\-–/(]+/).filter((w) => w.length >= 2).map((w) => w.slice(0, 2).replace(/[^a-z0-9]/g, '_'))
 const TOWN_RANK = { city: 0, town: 1, suburb: 2, quarter: 3, village: 4 }
 async function readTowns(path) {
   const all = []
@@ -682,6 +685,7 @@ async function main() {
   // The search name list: every place (name, id, where, kind, setting) and every town or area.
   let towns = null
   if (townsInput && existsSync(townsInput)) towns = await readTowns(townsInput)
+  else if (existsSync(`${OUT_DIR}/towns.json`)) towns = JSON.parse(readFileSync(`${OUT_DIR}/towns.json`, 'utf8'))
   else if (existsSync(`${OUT_DIR}/search.json`)) towns = JSON.parse(readFileSync(`${OUT_DIR}/search.json`, 'utf8')).towns || []
   const searchIndex = {
     generated: new Date().toISOString(),
@@ -689,7 +693,19 @@ async function main() {
     towns: towns || [],
   }
   counts.towns = searchIndex.towns.length
-  trail.push(`search: ${searchIndex.places.length} places, ${searchIndex.towns.length} towns and areas`)
+  // Split by the first two letters of every word (decided 5 Nov 2026: a first search must feel
+  // instant). Typing "sl" fetches only search/sl.json, a few KB, from this site.
+  const shards = new Map()
+  const add = (key, kind, row) => {
+    if (!shards.has(key)) shards.set(key, { places: [], towns: [] })
+    const sh = shards.get(key)
+    if (sh[kind].at(-1) !== row) sh[kind].push(row)
+  }
+  for (const [kind, rows] of [['places', searchIndex.places], ['towns', searchIndex.towns]]) {
+    for (const row of rows) for (const key of new Set(searchKeys(row[0]))) add(key, kind, row)
+  }
+  index.search = [...shards.keys()].sort()
+  trail.push(`search: ${searchIndex.places.length} places, ${searchIndex.towns.length} towns and areas, ${shards.size} parts`)
 
   for (const l of LANDMARKS) report.landmarks[l] = out.some((p) => p.name.toLowerCase().includes(l.toLowerCase()))
   report.counts = counts
@@ -727,7 +743,10 @@ async function main() {
     writeFileSync(`${tmp}/${k}.json`, JSON.stringify(v))
   }
   writeFileSync(`${tmp}/index.json`, JSON.stringify(index))
-  writeFileSync(`${tmp}/search.json`, JSON.stringify(searchIndex))
+  mkdirSync(`${tmp}/search`, { recursive: true })
+  for (const [k, v] of shards) writeFileSync(`${tmp}/search/${k}.json`, JSON.stringify(v))
+  // The whole town list, only so a run without --towns can keep last week's towns.
+  writeFileSync(`${tmp}/towns.json`, JSON.stringify(searchIndex.towns))
   rmSync(dir, { recursive: true, force: true })
   renameSync(tmp, dir)
   console.log(JSON.stringify({ ...counts, seconds: report.seconds }, null, 1))
