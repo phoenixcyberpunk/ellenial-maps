@@ -30,6 +30,7 @@ const WDQS = 'https://query.wikidata.org/sparql'
 // Nearby-photo lookups per week. The rest wait for the following weeks (answers are cached),
 // so a run stays well inside the job's time limit.
 const GEO_PER_RUN = 2000
+const NEARBY_MIN_HA = 10
 
 const BIG_HA = 10 // places this big or bigger are "big, open"; smaller ones are "small, cosy"
 const NATURE_PARK_HA = 30 // a park this big feels like nature rather than a city park
@@ -46,8 +47,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const T0 = Date.now()
 const log = (msg) => console.log(`[${((Date.now() - T0) / 60000).toFixed(1)} min] ${msg}`)
 // The photo step gets at most this long; whatever isn't asked this week is asked next week.
-// Keeps the whole job well inside its 60-minute limit even when Wikimedia is slow.
-const PHOTO_BUDGET_MS = 25 * 60000
+// 10 minutes keeps the weekly run under the 30-minute target in the scale-up plan (Ellen, 1 Nov).
+const PHOTO_BUDGET_MS = 10 * 60000
 // What happened, written to data/report.json so problems are visible in the repo.
 const trail = []
 const report = { generated: new Date().toISOString(), source: 'Geofabrik Sweden extract (OpenStreetMap)', features: 0, landmarks: {}, trail }
@@ -133,8 +134,52 @@ function shape(g) {
   let lat = biggest.reduce((sum, p) => sum + p.lat, 0) / biggest.length
   let lon = biggest.reduce((sum, p) => sum + p.lon, 0) / biggest.length
   if (!inside({ lat, lon }, biggest)) [lat, lon] = [biggest[0].lat, biggest[0].lon]
-  // Only whether it has an outline is kept; holding every outline for Sweden would fill the memory.
-  return { lat, lon, m2: Math.max(m2, 0), box, ring: true }
+  // The full outline isn't kept (all of Sweden's would fill the memory), only a small simplified
+  // copy of the biggest part for the card picture.
+  return { lat, lon, m2: Math.max(m2, 0), box, ring: true, outline: outlineOf(biggest, lat0) }
+}
+
+// A card-sized outline: the ring simplified to at most OUTLINE_MAX points, scaled so its longer side
+// is 100, north up. Stored as [width, height, x1, y1, x2, y2, ...] in whole numbers (about 100 bytes).
+const OUTLINE_MAX = 24
+function simplify(pts, tol) {
+  if (pts.length < 3) return pts
+  const keep = new Uint8Array(pts.length); keep[0] = keep[pts.length - 1] = 1
+  const stack = [[0, pts.length - 1]]
+  while (stack.length) {
+    const [a, b] = stack.pop()
+    const [ax, ay] = pts[a], [bx, by] = pts[b]
+    const dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy) || 1
+    let best = -1, far = tol
+    for (let i = a + 1; i < b; i++) {
+      const d = Math.abs(dy * pts[i][0] - dx * pts[i][1] + bx * ay - by * ax) / len
+      if (d > far) { far = d; best = i }
+    }
+    if (best > 0) { keep[best] = 1; stack.push([a, best], [best, b]) }
+  }
+  return pts.filter((_, i) => keep[i])
+}
+function outlineOf(ring, lat0) {
+  if (ring.length < 4) return null
+  const xy = ring.map((p) => toXY(p.lat, p.lon, lat0))
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  for (const [x, y] of xy) { if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y }
+  const span = Math.max(maxX - minX, maxY - minY)
+  if (!span) return null
+  const scaled = xy.map(([x, y]) => [((x - minX) / span) * 100, ((maxY - y) / span) * 100])
+  let pts = scaled, tol = 0.8
+  // Split the ring in two so the simplifier has a fixed start and end, then raise the tolerance until short enough.
+  const half = Math.floor(scaled.length / 2)
+  while (true) {
+    pts = simplify(scaled.slice(0, half + 1), tol).concat(simplify(scaled.slice(half), tol).slice(1))
+    if (pts.length - 1 <= OUTLINE_MAX || tol > 50) break
+    tol *= 1.4
+  }
+  pts = pts.slice(0, -1) // the ring repeats its first point at the end
+  if (pts.length < 3) return null
+  const out = [Math.max(1, Math.round(((maxX - minX) / span) * 100)), Math.max(1, Math.round(((maxY - minY) / span) * 100))]
+  for (const [x, y] of pts) out.push(Math.round(x), Math.round(y))
+  return out
 }
 
 function lineShape(points) {
@@ -391,7 +436,8 @@ async function addPhotos(places) {
 
   // Still nothing: a photo on Commons taken at the place itself. One whose title names the place
   // wins; otherwise, for places with an outline of at least 2 ha, one taken well inside it.
-  const todo = places.filter((x) => !x.file).sort((a, b) => (b.ha ?? 0) - (a.ha ?? 0))
+  // Only big parks and reserves (decided 1 Nov): elsewhere it found almost nothing and cost time.
+  const todo = places.filter((x) => !x.file && (x.kind === 'park' || x.kind === 'reserve') && (x.ha ?? 0) >= NEARBY_MIN_HA).sort((a, b) => (b.ha ?? 0) - (a.ha ?? 0))
   let geoAsked = 0, geoHits = 0
   for (const p of todo) {
     const key = `${p.e.type}/${p.e.id}`
@@ -558,6 +604,8 @@ async function main() {
       morePhotos: commonsCategory,
       osm: `${p.e.type}/${p.e.id}`,
       dogRule: dog ? dog.id : null,
+      // The place's own shape for cards without a photo; libraries' outlines are just the building.
+      outline: p.kind === 'library' ? null : p.outline || null,
     }
   })
 
