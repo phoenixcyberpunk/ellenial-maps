@@ -62,12 +62,16 @@ jobs:
             nwr/landuse=recreation_ground \
             -o work/filtered.osm.pbf
           osmium export work/filtered.osm.pbf -f geojsonseq -a type,id -o work/area.geojsonseq
+          # Towns, villages and city areas, for search.
+          osmium tags-filter work/sweden.osm.pbf n/place=city,town,village,suburb,quarter -o work/towns.osm.pbf
+          osmium export work/towns.osm.pbf -f geojsonseq -a type,id -o work/towns.geojsonseq
+          wc -l work/towns.geojsonseq
           wc -l work/area.geojsonseq
           ls -lh work/filtered.osm.pbf work/area.geojsonseq
       - name: Build the data file
         id: build
         continue-on-error: true
-        run: node --max-old-space-size=6144 scripts/build-data.mjs --input work/area.geojsonseq ${{ inputs.allow_drop && '--allow-drop' || '' }}
+        run: node --max-old-space-size=6144 scripts/build-data.mjs --input work/area.geojsonseq --towns work/towns.geojsonseq ${{ inputs.allow_drop && '--allow-drop' || '' }}
       - name: Commit the data and the report if they changed
         if: always()
         run: |

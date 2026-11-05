@@ -38,6 +38,9 @@ const NEAR_M = 200 // how far around a place a toilet, water tap or shelter stil
 
 const args = process.argv.slice(2)
 const input = args.includes('--input') ? args[args.indexOf('--input') + 1] : null
+// Towns, villages and city areas for search (osmium export of place=* nodes). Optional: without
+// it, last week's towns are kept.
+const townsInput = args.includes('--towns') ? args[args.indexOf('--towns') + 1] : null
 const test = args.includes('--test')
 const withPhotos = !args.includes('--no-photos')
 // A deliberate change of rules (like dropping plain hills) is allowed to shrink the data once.
@@ -92,6 +95,38 @@ async function* readFeatures(path) {
     for (const [k, v] of Object.entries(props)) if (!k.startsWith('@')) tags[k] = String(v)
     yield { type: props['@type'] || 'way', id: props['@id'] ?? 0, tags, geometry: f.geometry }
   }
+}
+
+// ---------- search: towns and areas ----------
+// For search (decided 5 Nov 2026): phones search a small name list on their own, so nothing anyone
+// types is ever sent anywhere. Towns come from OpenStreetMap's place=* points. A city area or
+// village also gets the nearest bigger town, so "Slottsstaden" reads "Area in Göteborg".
+const TOWN_RANK = { city: 0, town: 1, suburb: 2, quarter: 3, village: 4 }
+async function readTowns(path) {
+  const all = []
+  for await (const e of readFeatures(path)) {
+    const t = e.tags
+    if (!(t.place in TOWN_RANK) || !t.name || e.geometry?.type !== 'Point') continue
+    const [lon, lat] = e.geometry.coordinates
+    if (lat < AREA.south || lat > AREA.north || lon < AREA.west || lon > AREA.east) continue
+    all.push({ name: t['name:sv'] || t.name, type: t.place, lat, lon })
+  }
+  const big = all.filter((x) => x.type === 'city' || x.type === 'town')
+  const round4 = (x) => Math.round(x * 1e4) / 1e4
+  return all.map((x) => {
+    let near = null
+    if (x.type !== 'city') {
+      // City areas belong to the closest city or town within 15 km; villages are "near" one within 30 km.
+      const limit = x.type === 'village' ? 30000 : x.type === 'town' ? 0 : 15000
+      let best = Infinity
+      for (const b of big) {
+        if (b === x || b.name === x.name) continue
+        const d = metres(x, b)
+        if (d < best && d <= limit) { best = d; near = b.name }
+      }
+    }
+    return [x.name, x.type, round4(x.lat), round4(x.lon), near]
+  })
 }
 
 // ---------- geometry ----------
@@ -644,6 +679,18 @@ async function main() {
     dogRules,
   }
 
+  // The search name list: every place (name, id, where, kind, setting) and every town or area.
+  let towns = null
+  if (townsInput && existsSync(townsInput)) towns = await readTowns(townsInput)
+  else if (existsSync(`${OUT_DIR}/search.json`)) towns = JSON.parse(readFileSync(`${OUT_DIR}/search.json`, 'utf8')).towns || []
+  const searchIndex = {
+    generated: new Date().toISOString(),
+    places: out.map((p) => [p.name, p.id, Math.round(p.lat * 1e4) / 1e4, Math.round(p.lon * 1e4) / 1e4, p.kind, p.setting]),
+    towns: towns || [],
+  }
+  counts.towns = searchIndex.towns.length
+  trail.push(`search: ${searchIndex.places.length} places, ${searchIndex.towns.length} towns and areas`)
+
   for (const l of LANDMARKS) report.landmarks[l] = out.some((p) => p.name.toLowerCase().includes(l.toLowerCase()))
   report.counts = counts
   report.seconds = Math.round((Date.now() - started) / 1000)
@@ -680,6 +727,7 @@ async function main() {
     writeFileSync(`${tmp}/${k}.json`, JSON.stringify(v))
   }
   writeFileSync(`${tmp}/index.json`, JSON.stringify(index))
+  writeFileSync(`${tmp}/search.json`, JSON.stringify(searchIndex))
   rmSync(dir, { recursive: true, force: true })
   renameSync(tmp, dir)
   console.log(JSON.stringify({ ...counts, seconds: report.seconds }, null, 1))

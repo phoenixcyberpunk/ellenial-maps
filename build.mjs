@@ -10,7 +10,9 @@ import { cpSync, mkdirSync, rmSync, copyFileSync, existsSync, readFileSync, writ
 // About page). Written into /icons.js so the map pins and placeholders need no extra requests.
 const ICONS = { nature: 'trees', water: 'waves', urban: 'tree-deciduous', squares: 'landmark', gardens: 'flower-2', view: 'binoculars', libraries: 'book-open',
   // Small map pins for the facilities, so they never rely on colour alone (Ellenial accessibility rule).
-  toilet: 'toilet', tap: 'droplet', dogrun: 'dog' }
+  toilet: 'toilet', tap: 'droplet', dogrun: 'dog',
+  // Search: the field's magnifier and the pin for towns and areas.
+  search: 'search', town: 'map-pin' }
 
 const FONTS = [
   ['fraunces', [500]],

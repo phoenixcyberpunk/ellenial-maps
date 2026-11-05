@@ -73,6 +73,7 @@
     view: ['both', 'map', 'list'].includes(store.get('view', 'both')) ? store.get('view', 'both') : 'both',
     snap: ['peek', 'half', 'full'].includes(store.get('snap', 'peek')) ? store.get('snap', 'peek') : 'peek',
     sel: null,
+    area: null, // a town or area picked in search: { name, lat, lon }
   }
   const saveFilters = () => store.set('filters', state.filters)
 
@@ -88,7 +89,7 @@
     const y = (b.lat - a.lat) * rad
     return Math.hypot(x, y) * r
   }
-  const from = () => state.me || AT || CENTRE
+  const from = () => state.area || state.me || AT || CENTRE
 
   // ---------- dog rules ----------
   function dogStatus(rule) {
@@ -260,6 +261,8 @@
   const mapShown = () => state.view !== 'list'
 
   function renderHome() {
+    // While searching, the header (and the field being typed in) stays put; only the results change.
+    if (search.open) return renderResults()
     const s = t()
     const home = $('#home')
     const list = visible()
@@ -269,6 +272,7 @@
     fill($('#home-top'),
       h('div', { class: 'brandbar' }, h('p', { class: 'brand' }, s.title), dogSwitch(false)),
       h('h1', { class: 'sr-only' }, s.homeHeading),
+      searchRow(),
       h('div', { class: 'chiprow' },
         h('div', { class: 'chiprow__scroll', role: 'group', 'aria-label': s.setting }, SETTINGS.map((key) => chip(key))),
         h('a', { class: 'chip chip--sm chip--more', href: '#/filters' }, svg(ICON.filter, 14), s.more, activeCount() ? h('span', { class: 'badge' }, activeCount()) : null)),
@@ -283,7 +287,7 @@
       h('button', { class: 'sheet__handle', type: 'button', 'aria-label': s.panelHandle, 'aria-expanded': String(state.snap !== 'peek'), onclick: () => {} }, h('span', { class: 'sheet__grip', 'aria-hidden': 'true' })),
       sel ? selectedCard(sel, list.find((x) => x.p.id === sel.id)?.d ?? metres(from(), sel)) : null,
       h('div', { class: 'sheet__count' },
-        h('h2', { class: 'sheet__title' }, near ? s.placesNearby(near) : s.placesCount(list.length)),
+        h('h2', { class: 'sheet__title' }, state.area ? s.placesNearArea(list.filter((x) => x.d <= AREA_M).length || list.length, state.area.name) : near ? s.placesNearby(near) : s.placesCount(list.length)),
         h('span', { class: 'legend' },
           h('span', { class: 'legend__item' }, legendDot('toilet', 'toilet'), s.toilet),
           h('span', { class: 'legend__item' }, legendDot('water', 'tap'), s.waterTap),
@@ -400,6 +404,155 @@
       svg(ICON.next, 18))
   }
 
+  // ---------- search (decided 5 Nov 2026: option A, a field always on screen) ----------
+  // Searches a small name list (/data/sweden/search.json, built weekly) on the phone itself:
+  // our places by name, and Swedish towns and city areas. Nothing typed is ever sent anywhere.
+  const search = { open: false, q: '', idx: null, loading: null, failed: false }
+  const fold = (x) => x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  const TOWN_ORDER = { city: 0, town: 1, suburb: 2, quarter: 3, village: 4 }
+  const MAX_RESULTS = 5
+  const AREA_M = 5000 // "places near Kungsbacka" counts places within this of the town centre
+
+  const searchInput = h('input', {
+    type: 'search', class: 'search__input', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', enterkeyhint: 'search',
+    onfocus: () => openSearch(),
+    oninput: (e) => { search.q = e.target.value; renderResults() },
+    onkeydown: (e) => { if (e.key === 'Escape') closeSearch() },
+  })
+
+  function searchRow() {
+    const s = t()
+    searchInput.placeholder = s.searchPlaceholder
+    searchInput.setAttribute('aria-label', s.searchLabel)
+    if (state.area && !search.open) {
+      // A picked town: shown in the field's place, with a way back to "near you".
+      return h('div', { class: 'search search--area' },
+        settingIcon('town', 18),
+        h('button', { type: 'button', class: 'search__area', onclick: () => { searchInput.value = ''; search.q = ''; requestAnimationFrame(() => searchInput.focus()); openSearch() } }, state.area.name),
+        h('button', { type: 'button', class: 'search__clear', 'aria-label': s.searchBackToNear, onclick: clearArea }, svg(ICON.close, 14)))
+    }
+    return h('label', { class: 'search' }, settingIcon('search', 18), searchInput,
+      search.q ? h('button', { type: 'button', class: 'search__clear', 'aria-label': s.searchClear, onclick: () => { searchInput.value = ''; search.q = ''; searchInput.focus(); renderResults() } }, svg(ICON.close, 14)) : null)
+  }
+
+  function loadSearchIndex() {
+    if (search.idx || search.loading) return search.loading
+    search.loading = fetch('/data/sweden/search.json')
+      .then((r) => { if (!r.ok) throw new Error(r.status); return r.json() })
+      .then((d) => {
+        search.idx = {
+          places: d.places.map(([name, id, lat, lon, kind, setting]) => ({ name, f: fold(name), id, lat, lon, kind, setting })),
+          towns: (d.towns || []).map(([name, type, lat, lon, near]) => ({ name, f: fold(name), type, lat, lon, near })),
+        }
+        renderResults()
+      })
+      .catch(() => { search.failed = true; renderResults() })
+      .finally(() => { search.loading = null })
+    return search.loading
+  }
+
+  function openSearch() {
+    if (search.open) return
+    search.open = true
+    $('#home').classList.add('home--searching')
+    const s = t()
+    // Cancel takes the dog switch's place while searching.
+    $('#home-top .brandbar').replaceChildren(h('p', { class: 'brand' }, s.title), h('button', { type: 'button', class: 'search__cancel', onclick: closeSearch }, s.cancel))
+    const row = $('#home-top .search')
+    if (row && !row.contains(searchInput)) row.replaceWith(searchRow())
+    loadSearchIndex()
+    renderResults()
+  }
+
+  function closeSearch() {
+    search.open = false
+    search.q = ''
+    searchInput.value = ''
+    searchInput.blur()
+    $('#home').classList.remove('home--searching')
+    fill($('#search-results'))
+    renderHome()
+  }
+
+  // Where a typed word starts in a name: 0 = the name starts with it, 1 = a later word does.
+  function matchAt(f, q) {
+    if (f.startsWith(q)) return { score: 0, at: 0 }
+    const m = f.match(new RegExp('[\\s\\-–/(]' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+    return m ? { score: 1, at: m.index + 1 } : null
+  }
+
+  // The name with the typed part in bold. fold() keeps the length of Swedish names, so positions match.
+  function marked(name, at, len) {
+    return [name.slice(0, at), h('b', null, name.slice(at, at + len)), name.slice(at + len)]
+  }
+
+  function renderResults() {
+    const box = $('#search-results')
+    if (!search.open) return
+    const s = t()
+    const q = fold(search.q.trim())
+    const privacy = h('p', { class: 'search-note' }, s.searchPrivacy)
+    if (search.failed) return fill(box, h('p', { class: 'search-hint' }, s.searchUnavailable))
+    if (q.length < 2) return fill(box, h('p', { class: 'search-hint' }, s.searchHint), privacy)
+    if (!search.idx) return fill(box, h('p', { class: 'search-hint' }, s.loading))
+    const o = from()
+    const places = []
+    for (const p of search.idx.places) { const m = matchAt(p.f, q); if (m) places.push({ p, m, d: metres(o, p) }) }
+    places.sort((a, b) => a.m.score - b.m.score || a.d - b.d)
+    const towns = []
+    for (const x of search.idx.towns) { const m = matchAt(x.f, q); if (m) towns.push({ x, m, d: metres(o, x) }) }
+    towns.sort((a, b) => a.m.score - b.m.score || TOWN_ORDER[a.x.type] - TOWN_ORDER[b.x.type] || a.d - b.d)
+    if (!places.length && !towns.length) {
+      return fill(box, h('div', { class: 'search-empty' },
+        settingIcon('nature', 40),
+        h('h2', { class: 'search-empty__title' }, s.searchNothingTitle(search.q.trim())),
+        h('p', null, s.searchNothingText),
+        h('p', null, s.searchNothingTry),
+        h('div', { class: 'search-empty__actions' },
+          h('a', { class: 'pill-btn pill-btn--wide', href: '#/filters', onclick: () => closeSearch() }, s.searchBrowseFilters),
+          h('a', { class: 'pill-btn pill-btn--wide pill-btn--outline', href: 'https://lunch.ellenial.app/', rel: 'noopener' }, s.searchLunch))))
+    }
+    const len = q.length
+    fill(box,
+      places.length ? [h('p', { class: 'search-label' }, s.searchPlaces), places.slice(0, MAX_RESULTS).map(({ p, m, d }) =>
+        h('button', { type: 'button', class: 'sresult', onclick: () => pickPlace(p) },
+          h('span', { class: `sresult__icon sresult__icon--${p.setting}` }, settingIcon(p.setting, 20)),
+          h('span', { class: 'sresult__text' },
+            h('span', { class: 'sresult__name' }, marked(p.name, m.at, len)),
+            h('span', { class: 'sresult__meta' }, `${s.kindShort[p.kind] || s.settings[p.setting]} · ${s.km(d)}`))))] : null,
+      towns.length ? [h('p', { class: 'search-label' }, s.searchTowns), towns.slice(0, MAX_RESULTS).map(({ x, m }) =>
+        h('button', { type: 'button', class: 'sresult', onclick: () => pickTown(x) },
+          h('span', { class: 'sresult__icon sresult__icon--town' }, settingIcon('town', 20)),
+          h('span', { class: 'sresult__text' },
+            h('span', { class: 'sresult__name' }, marked(x.name, m.at, len)),
+            h('span', { class: 'sresult__meta' }, s.townKind(x.type, x.near)))))] : null,
+      privacy)
+  }
+
+  async function pickPlace(p) {
+    closeSearch()
+    await loadCells([cellOf(p.lat, p.lon)])
+    select(p.id)
+    if (map) map.easeTo({ center: [p.lon, p.lat], zoom: Math.max(map.getZoom(), 15), padding: { bottom: panelCover() } })
+  }
+
+  async function pickTown(x) {
+    state.area = { name: x.name, lat: x.lat, lon: x.lon }
+    state.sel = null
+    closeSearch()
+    await loadCells(around(state.area))
+    $('#panel-body').scrollTop = 0
+    renderHome()
+    if (map) map.flyTo({ center: [x.lon, x.lat], zoom: x.type === 'city' ? 11.5 : 13, padding: { bottom: panelCover() } })
+  }
+
+  function clearArea() {
+    state.area = null
+    renderHome()
+    const o = from()
+    if (map) map.flyTo({ center: [o.lon, o.lat], zoom: state.me ? 13 : 11, padding: { bottom: panelCover() } })
+  }
+
   function nearMe(e) {
     const s = t()
     const btn = e.currentTarget
@@ -409,6 +562,7 @@
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         state.me = { lat: pos.coords.latitude, lon: pos.coords.longitude }
+        state.area = null
         btn.lastChild.textContent = s.nearMeBusy
         await loadCells(around(state.me))
         renderHome()
