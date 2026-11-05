@@ -870,7 +870,7 @@
     if (galleries.has(p.id)) build(galleries.get(p.id))
     else fetch(`/data/sweden/gallery/${encodeURIComponent(p.id)}.json`)
       .then((r) => (r.ok ? r.json() : []))
-      .then((list) => { galleries.set(p.id, list); build(list) })
+      .then((list) => { list.forEach((ph) => { ph.src = ownPhoto(ph.src) }); galleries.set(p.id, list); build(list) })
       .catch(() => {})
     return strip
   }
