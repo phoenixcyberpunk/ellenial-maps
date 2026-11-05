@@ -1,5 +1,9 @@
 {
+<<<<<<< HEAD
  "generated": "2026-11-05T09:43:02.204Z",
+=======
+ "generated": "2026-11-05T09:55:23.425Z",
+>>>>>>> origin/search-split
  "source": "Geofabrik Sweden extract (OpenStreetMap)",
  "features": 137856,
  "landmarks": {
@@ -27,10 +31,15 @@
   "wikidata library: 154 with photos",
   "wikidata viewpoint: 20 with photos",
   "photos: 266 matched to Wikidata by name and location (3051 names)",
+<<<<<<< HEAD
   "photos: 88 from photos taken at the place (767 new lookups, 3048 places still to check in later weeks)",
   "photos: 768 requests to Wikimedia (0 new Wikidata items, 25 new files)",
+=======
+  "photos: 88 from photos taken at the place (768 new lookups, 3047 places still to check in later weeks)",
+  "photos: 769 requests to Wikimedia (0 new Wikidata items, 25 new files)",
+>>>>>>> origin/search-split
   "photos: stopped early to stay inside the time limit; the rest is asked next week",
-  "search: 13764 places, 4685 towns and areas"
+  "search: 13764 places, 4685 towns and areas, 292 parts"
  ],
  "counts": {
   "places": 13764,

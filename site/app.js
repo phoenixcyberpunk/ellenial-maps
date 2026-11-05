@@ -407,7 +407,7 @@
   // ---------- search (decided 5 Nov 2026: option A, a field always on screen) ----------
   // Searches a small name list (/data/sweden/search.json, built weekly) on the phone itself:
   // our places by name, and Swedish towns and city areas. Nothing typed is ever sent anywhere.
-  const search = { open: false, q: '', idx: null, loading: null, failed: false }
+  const search = { open: false, q: '' }
   const fold = (x) => x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   const TOWN_ORDER = { city: 0, town: 1, suburb: 2, quarter: 3, village: 4 }
   const MAX_RESULTS = 5
@@ -435,20 +435,23 @@
       search.q ? h('button', { type: 'button', class: 'search__clear', 'aria-label': s.searchClear, onclick: () => { searchInput.value = ''; search.q = ''; searchInput.focus(); renderResults() } }, svg(ICON.close, 14)) : null)
   }
 
-  function loadSearchIndex() {
-    if (search.idx || search.loading) return search.loading
-    search.loading = fetch('/data/sweden/search.json')
+  // The name list is split by the first two letters of every word (search/<ab>.json, a few KB
+  // each), so the first results show almost at once. Parts already fetched are kept for the visit.
+  const shardKey = (q) => q.slice(0, 2).replace(/[^a-z0-9]/g, '_')
+  const shards = new Map() // key -> { places, towns } | 'loading' | 'failed'
+  function loadShard(key) {
+    if (shards.has(key)) return
+    // index.json lists which parts exist; a part that doesn't exist simply has no matches.
+    if (Array.isArray(state.idx.search) && !state.idx.search.includes(key)) { shards.set(key, { places: [], towns: [] }); return }
+    shards.set(key, 'loading')
+    fetch(`/data/sweden/search/${key}.json`)
       .then((r) => { if (!r.ok) throw new Error(r.status); return r.json() })
-      .then((d) => {
-        search.idx = {
-          places: d.places.map(([name, id, lat, lon, kind, setting]) => ({ name, f: fold(name), id, lat, lon, kind, setting })),
-          towns: (d.towns || []).map(([name, type, lat, lon, near]) => ({ name, f: fold(name), type, lat, lon, near })),
-        }
-        renderResults()
-      })
-      .catch(() => { search.failed = true; renderResults() })
-      .finally(() => { search.loading = null })
-    return search.loading
+      .then((d) => shards.set(key, {
+        places: d.places.map(([name, id, lat, lon, kind, setting]) => ({ name, f: fold(name), id, lat, lon, kind, setting })),
+        towns: (d.towns || []).map(([name, type, lat, lon, near]) => ({ name, f: fold(name), type, lat, lon, near })),
+      }))
+      .catch(() => shards.set(key, 'failed'))
+      .finally(() => renderResults())
   }
 
   function openSearch() {
@@ -460,7 +463,6 @@
     $('#home-top .brandbar').replaceChildren(h('p', { class: 'brand' }, s.title), h('button', { type: 'button', class: 'search__cancel', onclick: closeSearch }, s.cancel))
     const row = $('#home-top .search')
     if (row && !row.contains(searchInput)) row.replaceWith(searchRow())
-    loadSearchIndex()
     renderResults()
   }
 
@@ -492,15 +494,18 @@
     const s = t()
     const q = fold(search.q.trim())
     const privacy = h('p', { class: 'search-note' }, s.searchPrivacy)
-    if (search.failed) return fill(box, h('p', { class: 'search-hint' }, s.searchUnavailable))
     if (q.length < 2) return fill(box, h('p', { class: 'search-hint' }, s.searchHint), privacy)
-    if (!search.idx) return fill(box, h('p', { class: 'search-hint' }, s.loading))
+    const key = shardKey(q)
+    loadShard(key)
+    const part = shards.get(key)
+    if (part === 'failed') { shards.delete(key); return fill(box, h('p', { class: 'search-hint' }, s.searchUnavailable)) }
+    if (part === 'loading') return fill(box, h('p', { class: 'search-hint' }, s.loading))
     const o = from()
     const places = []
-    for (const p of search.idx.places) { const m = matchAt(p.f, q); if (m) places.push({ p, m, d: metres(o, p) }) }
+    for (const p of part.places) { const m = matchAt(p.f, q); if (m) places.push({ p, m, d: metres(o, p) }) }
     places.sort((a, b) => a.m.score - b.m.score || a.d - b.d)
     const towns = []
-    for (const x of search.idx.towns) { const m = matchAt(x.f, q); if (m) towns.push({ x, m, d: metres(o, x) }) }
+    for (const x of part.towns) { const m = matchAt(x.f, q); if (m) towns.push({ x, m, d: metres(o, x) }) }
     towns.sort((a, b) => a.m.score - b.m.score || TOWN_ORDER[a.x.type] - TOWN_ORDER[b.x.type] || a.d - b.d)
     if (!places.length && !towns.length) {
       return fill(box, h('div', { class: 'search-empty' },
