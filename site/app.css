@@ -297,3 +297,8 @@ body.is-locked { overflow: hidden; overscroll-behavior: none; }
 .outline__label svg { flex: none; stroke-width: 2.4; }
 .hero__img.outline--big .outline__shape { inset: 56px 24px 20px; width: calc(100% - 48px); height: calc(100% - 76px); }
 .hero__img.outline .outline__label { top: auto; bottom: 14px; left: auto; right: 16px; font-size: 13px; padding: 4px 11px 4px 9px; }
+
+/* Deep link (?at=…) with no matching place: a plain pin with its label. */
+.at-pin { display: flex; align-items: center; gap: 6px; pointer-events: none; }
+.at-pin__dot { width: 18px; height: 18px; border-radius: 50%; background: var(--brand, #342E86); border: 3px solid var(--bg); box-shadow: 0 0 0 2px var(--brand, #342E86); flex: none; }
+.at-pin__label { padding: 3px 10px; border-radius: 999px; background: var(--ink); color: var(--bg); font: 600 13px/1.4 var(--sans); white-space: nowrap; max-width: 60vw; overflow: hidden; text-overflow: ellipsis; }

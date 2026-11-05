@@ -45,6 +45,24 @@
   const t = () => window.STRINGS[lang]
 
   const CENTRE = { lat: 57.7072, lon: 11.9668 } // Gustaf Adolfs torg
+
+  // ---------- deep link from other Ellenial apps ----------
+  // maps.ellenial.app/?at=LAT,LNG[&z=ZOOM][&name=Label] opens the map on that spot. If one of our
+  // places is within MATCH_M metres it is selected (pin + card); otherwise a plain pin with the
+  // label is shown. Read once on load, never saved or sent anywhere.
+  const MATCH_M = 50
+  const AT = (() => {
+    try {
+      const q = new URLSearchParams(location.search)
+      const m = (q.get('at') || '').match(/^\s*(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$/)
+      if (!m) return null
+      const lat = +m[1], lon = +m[2]
+      if (lat < 54 || lat > 70 || lon < 4 || lon > 32) return null // our data covers Sweden
+      const z = Math.min(18, Math.max(5, Number(q.get('z')) || 16))
+      const name = (q.get('name') || '').trim().slice(0, 80) || null
+      return { lat, lon, z, name }
+    } catch { return null }
+  })()
   const SETTINGS = ['nature', 'water', 'urban', 'squares', 'gardens', 'view', 'libraries']
 
   const state = {
@@ -70,7 +88,7 @@
     const y = (b.lat - a.lat) * rad
     return Math.hypot(x, y) * r
   }
-  const from = () => state.me || CENTRE
+  const from = () => state.me || AT || CENTRE
 
   // ---------- dog rules ----------
   function dogStatus(rule) {
@@ -512,8 +530,8 @@
       map = new window.maplibregl.Map({
         container: 'map',
         style: window.mapStyle(location.origin, dark),
-        center: [CENTRE.lon, CENTRE.lat],
-        zoom: 11,
+        center: AT ? [AT.lon, AT.lat] : [CENTRE.lon, CENTRE.lat],
+        zoom: AT ? AT.z : 11,
         minZoom: 5,
         maxZoom: 18,
         attributionControl: false,
@@ -593,6 +611,13 @@
           map.setStyle(window.mapStyle(location.origin, dark), { diff: false })
         })
       })
+      // A linked spot with no matching place: a plain labelled pin. A DOM marker, so it survives
+      // theme changes without being added again. The label is set as text, never as HTML.
+      if (AT && !AT.match) {
+        const el = h('div', { class: 'at-pin', role: 'img', 'aria-label': AT.name || t().linkedSpot },
+          h('span', { class: 'at-pin__dot' }), h('span', { class: 'at-pin__label' }, AT.name || t().linkedSpot))
+        new window.maplibregl.Marker({ element: el, anchor: 'left', offset: [-9, 0] }).setLngLat([AT.lon, AT.lat]).addTo(map)
+      }
       map.on('error', (e) => console.warn('map:', e.error?.message || e))
     } catch (err) {
       console.warn('Map unavailable:', err.message)
@@ -877,8 +902,16 @@
       await loadCells([...around(from()), ...(linked ? [linked[1]] : [])])
       status.hidden = true
       setupPanel()
+      if (AT) {
+        // Nearest of our places to the linked spot, if it is close enough to be the same place.
+        let best = null, bestD = Infinity
+        for (const p of state.data.places) { const d = metres(AT, p); if (d < bestD) { best = p; bestD = d } }
+        if (best && bestD <= MATCH_M) { AT.match = best.id; state.sel = best.id }
+        else if (AT.name && !document.createElement('canvas').getContext('webgl')) note(AT.name)
+      }
       render()
       initMap()
+      if (AT?.match) requestAnimationFrame(() => $(`.pcard[data-id="${CSS.escape(AT.match)}"]`)?.scrollIntoView({ inline: 'center', block: 'nearest' }))
     } catch {
       fill(status, h('p', null, s.loadFailed), h('button', { class: 'pill-btn', type: 'button', onclick: load }, s.tryAgain))
     }
