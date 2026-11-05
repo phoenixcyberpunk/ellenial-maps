@@ -188,7 +188,7 @@ button { font: inherit; color: inherit; }
 /* ---------- round 2 home: header, map stage, pull-up panel ---------- */
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 body.is-locked { overflow: hidden; overscroll-behavior: none; }
-.home--both, .home--map { height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
+.home--map { height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
 .home__top { flex: none; width: 100%; padding-bottom: 10px; }
 .home__top .brandbar { padding-top: 10px; }
 
@@ -201,31 +201,33 @@ body.is-locked { overflow: hidden; overscroll-behavior: none; }
 .chiprow .chip--more { flex: none; margin-right: 16px; }
 
 .toolbar { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
-.seg--views { flex: 1; max-width: 270px; padding: 3px; border-radius: 12px; }
-.seg--views .seg__btn { min-height: 36px; font-size: 13px; }
+.near-me--reset { border-style: dashed; }
 
 .stage { position: relative; flex: 1; min-height: 0; width: 100%; max-width: 640px; margin: 0 auto; overflow: hidden; }
 .stage .map { position: absolute; inset: 0; }
 .home--list .stage { overflow: visible; }
 .home--list .map { display: none; }
-@media (min-width: 672px) { .home--both .stage, .home--map .stage { border-radius: 20px 20px 0 0; } }
+@media (min-width: 672px) { .home--map .stage { border-radius: 20px 20px 0 0; } }
 
-/* the panel */
-.sheet { position: absolute; left: 0; right: 0; top: 0; height: 100%; z-index: 2; display: flex; flex-direction: column;
-  background: var(--bg); border-radius: 22px 22px 0 0; box-shadow: 0 -6px 24px rgba(31,26,46,.16);
-  transform: translateY(var(--y, 60%)); transition: transform .28s cubic-bezier(.2,.8,.2,1); will-change: transform; }
-.sheet.is-dragging { transition: none; }
-.home--map .sheet { display: none; }
-.home--list .sheet { position: static; height: auto; transform: none; box-shadow: none; border-radius: 0; }
-.sheet__head { flex: none; padding: 0 16px 10px; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
-.home--list .sheet__head { touch-action: auto; cursor: auto; padding-top: 6px; }
-.sheet__handle { display: flex; justify-content: center; width: 100%; height: 26px; padding: 10px 0 0; border: none; background: none; cursor: grab; }
-.sheet__grip { width: 44px; height: 5px; border-radius: 999px; background: var(--edge); }
-.home--list .sheet__handle { display: none; }
-.sheet__count { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 12px; }
-.sheet__title { margin: 0; font: 500 20px/1.25 var(--serif); letter-spacing: -0.3px; }
-.sheet__body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: env(safe-area-inset-bottom); }
-.home--list .sheet__body { overflow: visible; }
+/* Layout A (Ellen, 5 Nov): on a phone the map or the list, never both.
+   Map: a bar along the bottom with the count, legend and "Show list" (the selected place above it).
+   List: the whole screen, with a floating "Map" button. The pull-up panel is gone. */
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; display: flex; flex-direction: column;
+  background: var(--bg); border-radius: 22px 22px 0 0; box-shadow: 0 -6px 24px rgba(31,26,46,.16); }
+.home--map .sheet__body { display: none; }
+.home--list .sheet { position: static; height: auto; box-shadow: none; border-radius: 0; }
+.sheet__head { flex: none; padding: 12px 16px 10px; }
+.home--list .sheet__head { padding-top: 6px; }
+.sheet__count { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; }
+.sheet__lead { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sheet__title { margin: 0; font: 500 19px/1.2 var(--serif); letter-spacing: -0.3px; }
+.sheet__switch { flex: none; min-height: 40px; padding: 0 14px 0 16px; }
+.home--list .sheet__switch { display: none; }
+.sheet__body { flex: 1; min-height: 0; padding-bottom: env(safe-area-inset-bottom); }
+.home--list .sheet__body { overflow: visible; padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+.map-fab-wrap { display: none; }
+.home--list .map-fab-wrap { display: flex; justify-content: center; position: fixed; left: 0; right: 0; bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 3; pointer-events: none; }
+.map-fab { pointer-events: auto; min-height: 48px; padding: 0 20px 0 16px; box-shadow: 0 6px 20px rgba(31,26,46,.28); }
 .sheet__pad { padding: 0 16px; }
 .sheet .footer { margin-top: 20px; }
 
@@ -369,13 +371,16 @@ body.is-locked { overflow: hidden; overscroll-behavior: none; }
   .home--searching .search-results { max-width: 640px; margin: 0 auto; width: 100%; }
   /* The list beside the map instead of a pull-up panel over it. */
   .stage { max-width: none; display: flex; border-top: 1px solid var(--line); }
-  .home--both .stage, .home--map .stage { border-radius: 0; }
+  /* Computers always show the list beside the map: no Show list / Map buttons. */
+  .home--map, .home--list { height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
+  .home--map .stage, .home--list .stage { border-radius: 0; }
   .stage .map { position: relative; inset: auto; flex: 1; min-width: 0; }
-  .home--both .sheet { position: relative; order: -1; flex: none; width: 420px; height: 100%; transform: none !important; transition: none; border-radius: 0; box-shadow: none; border-right: 1px solid var(--line); }
-  .home--both .sheet__head { cursor: auto; touch-action: auto; padding-top: 12px; }
-  .home--both .sheet__handle { display: none; }
-  .home--list .stage { display: block; }
-  .home--list .sheet { max-width: 1200px; margin: 0 auto; }
+  .home--list .map { display: block; }
+  .home--list .stage { overflow: hidden; }
+  .sheet { position: relative; order: -1; flex: none; width: 420px; height: 100%; border-radius: 0; box-shadow: none; border-right: 1px solid var(--line); }
+  .sheet__head { padding-top: 12px; }
+  .home--map .sheet__body, .home--list .sheet__body { display: block; overflow-y: auto; padding-bottom: 0; }
+  .sheet__switch, .home--list .map-fab-wrap { display: none; }
   /* Place pages: photos left, details right. */
   .page--place { max-width: 1080px; }
   .page--place { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); column-gap: 40px; align-items: start; }
