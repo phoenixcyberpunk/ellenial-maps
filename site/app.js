@@ -70,8 +70,10 @@
     filters: Object.assign({ settings: [], size: 'any', nearby: [] }, store.get('filters', {})),
     dog: store.get('dog', false) === true,
     me: null,
-    view: ['both', 'map', 'list'].includes(store.get('view', 'both')) ? store.get('view', 'both') : 'both',
-    snap: ['peek', 'half', 'full'].includes(store.get('snap', 'peek')) ? store.get('snap', 'peek') : 'peek',
+    // Layout A (Ellen, 5 Nov): on a phone it's the map or the list, never both. 'both' saved by
+    // older versions means the map.
+    view: store.get('view', 'map') === 'list' ? 'list' : 'map',
+    follow: null, // the map's current view once the person has moved it: { s, w, n, e, lat, lon }
     sel: null,
     area: null, // a town or area picked in search: { name, lat, lon }
   }
@@ -122,9 +124,14 @@
     for (const n of f.nearby) if (!p.nearby[n]) return false
     return true
   }
+  // The list follows the map (Ellen, 5 Nov): once the map has been moved, only the places in
+  // view are listed, closest to the middle of the map first. Before that, closest to the person.
   const visible = () => {
-    const o = from()
-    return state.data.places.filter(matches).map((p) => ({ p, d: metres(o, p) })).sort((a, b) => a.d - b.d)
+    const f = state.follow
+    const o = f ? { lat: f.lat, lon: f.lon } : from()
+    return state.data.places.filter(matches)
+      .filter((p) => !f || (p.lat >= f.s && p.lat <= f.n && p.lon >= f.w && p.lon <= f.e))
+      .map((p) => ({ p, d: metres(o, p) })).sort((a, b) => a.d - b.d)
   }
   const activeCount = () => (state.filters.size !== 'any' ? 1 : 0) + state.filters.nearby.length
 
@@ -340,11 +347,10 @@
   let mapReady = false
   let homeScroll = 0
   let panelScroll = 0
-  const VIEWS = ['both', 'map', 'list']
-  const SNAPS = ['peek', 'half', 'full']
   const NEARBY_M = 2000
   const SHELF = 10
-  const mapShown = () => state.view !== 'list'
+  // Phones show the map or the list; computers (900 px and wider) always show both side by side.
+  const mapShown = () => state.view !== 'list' || wide.matches
 
   function renderHome() {
     // While searching, the header (and the field being typed in) stays put; only the results change.
@@ -363,22 +369,29 @@
         h('div', { class: 'chiprow__scroll', role: 'group', 'aria-label': s.setting }, SETTINGS.map((key) => chip(key))),
         h('a', { class: 'chip chip--sm chip--more', href: '#/filters' }, svg(ICON.filter, 14), s.more, activeCount() ? h('span', { class: 'badge' }, activeCount()) : null)),
       h('div', { class: 'toolbar' },
-        h('div', { class: 'seg seg--views', role: 'group', 'aria-label': s.view },
-          VIEWS.map((v) => h('button', { type: 'button', class: 'seg__btn', 'aria-pressed': String(state.view === v), onclick: () => setView(v) }, s.views[v]))),
-        h('button', { class: 'near-me', type: 'button', onclick: nearMe }, svg(ICON.locate, 16), s.nearMe)))
+        h('button', { class: 'near-me', type: 'button', onclick: nearMe }, svg(ICON.locate, 16), s.nearMe),
+        state.follow ? h('button', { class: 'near-me near-me--reset', type: 'button', onclick: unfollow }, svg(ICON.close, 14), s.wholeArea) : null))
 
     const near = list.filter((x) => x.d <= NEARBY_M).length
     const sel = state.sel && state.data.places.find((p) => p.id === state.sel)
+    const title = state.follow ? s.placesInView(list.length)
+      : state.area ? s.placesNearArea(list.filter((x) => x.d <= AREA_M).length || list.length, state.area.name)
+      : near ? s.placesNearby(near) : s.placesCount(list.length)
+    // On a phone this is the bar along the bottom of the map (count, legend, "Show list"), or the
+    // top of the full-screen list. On a computer it heads the list beside the map.
     fill($('#panel-head'),
-      h('button', { class: 'sheet__handle', type: 'button', 'aria-label': s.panelHandle, 'aria-expanded': String(state.snap !== 'peek'), onclick: () => {} }, h('span', { class: 'sheet__grip', 'aria-hidden': 'true' })),
       sel ? selectedCard(sel, list.find((x) => x.p.id === sel.id)?.d ?? metres(from(), sel)) : null,
       h('div', { class: 'sheet__count' },
-        h('h2', { class: 'sheet__title' }, state.area ? s.placesNearArea(list.filter((x) => x.d <= AREA_M).length || list.length, state.area.name) : near ? s.placesNearby(near) : s.placesCount(list.length)),
-        h('span', { class: 'legend' },
-          h('span', { class: 'legend__item' }, legendDot('toilet', 'toilet'), s.toilet),
-          h('span', { class: 'legend__item' }, legendDot('water', 'tap'), s.waterTap),
-          state.dog ? h('span', { class: 'legend__item' }, legendDot('dog', 'dogrun'), s.dogRun) : null)),
+        h('div', { class: 'sheet__lead' },
+          h('h2', { class: 'sheet__title' }, title),
+          h('span', { class: 'legend' },
+            h('span', { class: 'legend__item' }, legendDot('toilet', 'toilet'), s.toilet),
+            h('span', { class: 'legend__item' }, legendDot('water', 'tap'), s.waterTap),
+            state.dog ? h('span', { class: 'legend__item' }, legendDot('dog', 'dogrun'), s.dogRun) : null)),
+        h('button', { class: 'pill-btn pill-btn--soft sheet__switch', type: 'button', onclick: () => setView('list') }, s.showList, svg(ICON.next, 16))),
       state.dog ? dogStrip() : null)
+    // In the list: a floating button back to the map.
+    fill($('#map-fab'), h('button', { class: 'pill-btn map-fab', type: 'button', onclick: () => setView('map') }, settingIcon('town', 18), s.showMap))
 
     const dogShelf = ['dog', list.filter(({ p }) => goodWithDog(p))]
     const shelves = [
@@ -398,13 +411,20 @@
     $('#map').setAttribute('aria-label', s.mapLabel)
     home.hidden = false
     updateMap(list)
-    requestAnimationFrame(() => { applySnap(); if (map && mapShown()) map.resize() })
+    requestAnimationFrame(() => { if (map && mapShown()) map.resize() })
   }
 
   function setView(v) {
     state.view = v
     store.set('view', v)
-    if (v === 'list') state.sel = null
+    render()
+    if (v === 'list') { $('#panel-head').scrollIntoView?.({ block: 'start' }); window.scrollTo(0, 0) }
+  }
+  // Back from "places in this area" to places near the person (or the picked town).
+  function unfollow() {
+    state.follow = null
+    const o = from()
+    if (map) { map.flyTo({ center: [o.lon, o.lat], zoom: state.area ? 13 : state.me ? 13 : 11 }) }
     render()
   }
 
@@ -629,6 +649,7 @@
 
   async function pickTown(x) {
     state.area = { name: x.name, lat: x.lat, lon: x.lon }
+    state.follow = null
     state.sel = null
     closeSearch()
     await loadCells(around(state.area))
@@ -654,6 +675,7 @@
       async (pos) => {
         state.me = { lat: pos.coords.latitude, lon: pos.coords.longitude }
         state.area = null
+        state.follow = null
         btn.lastChild.textContent = s.nearMeBusy
         await loadCells(around(state.me))
         renderHome()
@@ -671,69 +693,11 @@
     note.timer = setTimeout(() => { n.hidden = true }, 6000)
   }
 
-  // ---------- the pull-up panel ----------
-  // Three resting heights: peek (handle, selected place, count), half, full. Drag the top part,
-  // or tap the handle to go peek -> half -> full -> peek.
-  function snapY(snap) {
-    const stage = $('#stage').clientHeight
-    const peek = $('#panel-head').offsetHeight + 8
-    return snap === 'full' ? 0 : snap === 'half' ? Math.round(stage * 0.5) : Math.max(0, stage - peek)
-  }
-  function applySnap(y) {
-    const panel = $('#panel')
-    if (state.view !== 'both') { panel.style.removeProperty('--y'); return }
-    panel.dataset.snap = state.snap
-    panel.style.setProperty('--y', `${y ?? snapY(state.snap)}px`)
-    $('.sheet__handle')?.setAttribute('aria-expanded', String(state.snap !== 'peek'))
-  }
   // On computers (900 px and wider, like ellenial weather) the list sits beside the map instead of over it.
   const wide = window.matchMedia('(min-width: 900px)')
   wide.addEventListener?.('change', () => { if (map) requestAnimationFrame(() => map.resize()) })
-  const panelCover = () => (state.view === 'both' && !wide.matches ? $('#stage').clientHeight - snapY(state.snap) : 0)
+  const panelCover = () => (state.view === 'map' && !wide.matches ? $('#panel-head').offsetHeight : 0)
 
-  function setupPanel() {
-    const head = $('#panel-head')
-    const panel = $('#panel')
-    let drag = null
-    head.addEventListener('pointerdown', (e) => {
-      if (state.view !== 'both' || e.target.closest('a, .selcard__close')) return
-      drag = { y0: e.clientY, from: snapY(state.snap), moved: false, t0: performance.now() }
-      head.setPointerCapture(e.pointerId)
-      panel.classList.add('is-dragging')
-    })
-    head.addEventListener('pointermove', (e) => {
-      if (!drag) return
-      const dy = e.clientY - drag.y0
-      if (Math.abs(dy) > 6) drag.moved = true
-      if (drag.moved) applySnap(Math.min(snapY('peek'), Math.max(0, drag.from + dy)))
-    })
-    const end = (e) => {
-      if (!drag) return
-      panel.classList.remove('is-dragging')
-      if (!drag.moved) {
-        if (e.type === 'pointerup') state.snap = SNAPS[(SNAPS.indexOf(state.snap) + 1) % SNAPS.length]
-      } else {
-        const y = drag.from + (e.clientY - drag.y0)
-        const v = (e.clientY - drag.y0) / Math.max(1, performance.now() - drag.t0) // px per ms
-        if (Math.abs(v) > 0.6) state.snap = v < 0 ? (state.snap === 'peek' ? 'half' : 'full') : (state.snap === 'full' ? 'half' : 'peek')
-        else state.snap = SNAPS.reduce((best, sn) => (Math.abs(snapY(sn) - y) < Math.abs(snapY(best) - y) ? sn : best), 'peek')
-      }
-      store.set('snap', state.snap)
-      drag = null
-      applySnap()
-    }
-    head.addEventListener('pointerup', end)
-    head.addEventListener('pointercancel', end)
-    // Keyboard: the handle is a button; Enter/Space go through the same cycle.
-    head.addEventListener('keydown', (e) => {
-      if (!e.target.classList.contains('sheet__handle') || (e.key !== 'Enter' && e.key !== ' ')) return
-      e.preventDefault()
-      state.snap = SNAPS[(SNAPS.indexOf(state.snap) + 1) % SNAPS.length]
-      store.set('snap', state.snap)
-      applySnap()
-    })
-    addEventListener('resize', () => applySnap())
-  }
 
   // ---------- the map ----------
   const isDark = () => window.EllenialTheme ? window.EllenialTheme.resolved() === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches
@@ -849,6 +813,20 @@
         if (keys.length <= 60 && await loadCells(keys)) updateMap(visible())
       }
       map.on('moveend', loadView)
+      // The list follows the map: a move or zoom by the person (not one the app made) sets the
+      // area the list shows. A tiny nudge doesn't count.
+      let moveStart = null
+      map.on('movestart', (e) => { moveStart = e.originalEvent ? { c: map.getCenter(), z: map.getZoom() } : null })
+      map.on('moveend', (e) => {
+        if (!moveStart && !e.originalEvent) return
+        const c = map.getCenter(), z = map.getZoom()
+        if (moveStart && Math.abs(z - moveStart.z) < 0.05 && metres({ lat: c.lat, lon: c.lng }, { lat: moveStart.c.lat, lon: moveStart.c.lng }) < 40) return
+        moveStart = null
+        if (z < 10) return // zoomed out to a whole region: too many to list, keep the previous area
+        const b = map.getBounds()
+        state.follow = { s: b.getSouth(), w: b.getWest(), n: b.getNorth(), e: b.getEast(), lat: c.lat, lon: c.lng }
+        renderHome()
+      })
       map.on('load', () => {
         addOwnLayers()
         loadView()
@@ -1171,7 +1149,7 @@
     const [name, arg, arg2] = route.split('/')
     const onHome = !name || name === 'filters'
     // In the Both view the map and panel fill the screen, so the page itself doesn't scroll.
-    document.body.classList.toggle('is-locked', onHome && state.view === 'both')
+    document.body.classList.toggle('is-locked', onHome && mapShown())
     if (onHome) {
       dropPlaceMap()
       const wasAway = $('#home').hidden
@@ -1262,7 +1240,6 @@
       const linked = location.hash.match(/^#\/place\/[^/]+\/(\d+_\d+)/)
       await loadCells([...around(from()), ...(linked ? [linked[1]] : [])])
       status.hidden = true
-      setupPanel()
       if (AT) {
         // Nearest of our places to the linked spot, if it is close enough to be the same place.
         let best = null, bestD = Infinity
