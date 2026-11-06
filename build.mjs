@@ -47,4 +47,6 @@ copyFileSync('node_modules/lucide-static/LICENSE', 'dist/vendor/lucide-LICENSE.t
 // The places: data/sweden/ (written weekly), or the small offline sample before the first run.
 const data = existsSync('data/sweden/index.json') ? 'data/sweden' : 'data/sample'
 cpSync(data, 'dist/data/sweden', { recursive: true })
+// Maps' own copies of the Commons photos (written weekly by scripts/fetch-photos.mjs) as /photos/.
+if (existsSync('data/photos')) cpSync('data/photos', 'dist/photos', { recursive: true })
 console.log(`Built dist/ with ${data}`)
