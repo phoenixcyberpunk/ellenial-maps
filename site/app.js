@@ -174,13 +174,14 @@
 
   // No photo yet: the place's own outline from the map when it has one (decided 1 Nov), with the
   // pin's icon and a short word in the corner so it reads at a glance. Places that are only a point
-  // on the map keep a calm block in the setting's colour with its icon and a word in brackets.
+  // on the map keep a calm block in the setting's colour with Ellen's drawing for it (the bracket
+  // words were placeholders until her drawings existed; removed 6 Nov).
   const SVG_NS = 'http://www.w3.org/2000/svg'
   function placeholder(setting, cls, p) {
     const big = /pcard__img|hero__img/.test(cls || '')
     if (p && Array.isArray(p.outline) && p.outline.length >= 8) return outlineCard(p, cls, big)
     return h('div', { class: `placeholder placeholder--${setting} ${cls || ''}`, role: 'img', 'aria-label': t().noPhoto },
-      settingIcon(setting, big ? 28 : 20), big ? h('span', null, t().placeholders[setting]) : null)
+      settingIcon(setting, big ? 40 : 20))
   }
 
   function outlineCard(p, cls, big) {
