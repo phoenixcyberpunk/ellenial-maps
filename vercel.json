@@ -8,12 +8,12 @@
       "destination": "https://tiles.openfreemap.org/:path*"
     },
     {
-      "source": "/photo/:path*",
-      "destination": "https://upload.wikimedia.org/:path*"
+      "source": "/photo/wikipedia/commons/:a([0-9a-f])/:b([0-9a-f][0-9a-f])/:file([^/]+\\.(?:jpg|JPG|jpeg|JPEG|png|PNG|webp|WEBP))",
+      "destination": "https://upload.wikimedia.org/wikipedia/commons/:a/:b/:file"
     },
     {
-      "source": "/thumb/:path*",
-      "destination": "https://thumb.wikimedia.org/:path*"
+      "source": "/thumb/wikipedia/commons/thumb/:a([0-9a-f])/:b([0-9a-f][0-9a-f])/:orig([^/]+\\.(?:jpg|JPG|jpeg|JPEG|png|PNG|webp|WEBP))/:size([1-9][0-9][0-9]px-[^/]+\\.(?:jpg|JPG|jpeg|JPEG|png|PNG|webp|WEBP))",
+      "destination": "https://thumb.wikimedia.org/wikipedia/commons/thumb/:a/:b/:orig/:size"
     }
   ],
   "headers": [
