@@ -1258,6 +1258,18 @@
       fill(status, h('p', null, s.loadFailed), h('button', { class: 'pill-btn', type: 'button', onclick: load }, s.tryAgain))
     }
   }
+  // Visit counter for Ellen's project board: one count per browser per day, nothing else.
+  // The date is remembered in this browser only; the server just adds 1 to today's number.
+  ;(function countVisit() {
+    try {
+      if (location.hostname !== 'maps.ellenial.app') return
+      const day = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm' }).format(new Date())
+      if (localStorage.getItem('ellenial-maps:counted') === day) return
+      localStorage.setItem('ellenial-maps:counted', day)
+      if (navigator.sendBeacon) navigator.sendBeacon('/api/visit')
+      else fetch('/api/visit', { method: 'POST', keepalive: true }).catch(() => {})
+    } catch { /* private mode or storage off: skip counting rather than count every load */ }
+  })()
   lastRoute = location.hash.replace(/^#\/?/, '')
   load()
 })()
