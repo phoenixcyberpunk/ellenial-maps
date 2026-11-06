@@ -1196,8 +1196,9 @@
   // toilets, water taps and dog runs. Squares load around you (for the sections) and for what
   // the map shows, so a phone never downloads all of Sweden.
   const { cellOf, cellsIn } = window.EllenialCells
-  // Photos always come through this site (/photo/, /thumb/), never straight from Wikimedia, and
-  // without the utm_ tags Wikimedia adds (Nov 2026). Data from before the fix gets mapped here.
+  // Photos are Maps' own copies under /photos/ (scripts/fetch-photos.mjs, 6 Nov 2026), never
+  // straight from Wikimedia. Older addresses are still mapped here so a stray one never reaches
+  // Wikimedia: /photo/ and /thumb/ no longer exist, so it fails and shows the drawn placeholder.
   const ownPhoto = (u) => (u || '').split('?')[0]
     .replace('https://upload.wikimedia.org/', '/photo/')
     .replace('https://thumb.wikimedia.org/', '/thumb/')
