@@ -6,7 +6,7 @@
 const SUPABASE = "https://knvrvmqdxvcatsrvkrgx.supabase.co";
 const KEY = "sb_publishable_5e3mg1E-r-P_to34ONwRfw_FQYUwy3z";
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   if (req.method !== "POST") {
     res.statusCode = 405;
@@ -25,4 +25,4 @@ module.exports = async (req, res) => {
     res.statusCode = 502; // a missed count is fine; the page never waits for this
   }
   res.end();
-};
+}
