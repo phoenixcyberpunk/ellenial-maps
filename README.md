@@ -8,6 +8,7 @@ Made by Ellen, one person, with AI helping on the code. Part of [Ellenial](https
 
 - Free, never paywalled. No ads, no trackers, no accounts, no cookies.
 - Your location stays on your phone, and is only used when you tap "Near me".
+- Visits are counted as one number a day for Ellen's project board (since 6 Nov 2026): each phone sends one empty +1 per Stockholm day to `/api/visit`, which can only add 1 to `ellenial_maps.daily_visits` via `maps_count_visit()` (capped at 50,000; migration in `supabase/migrations`). No id, cookie or page details; only maps.ellenial.app counts. Said openly in Privacy.
 - Phones only ever talk to maps.ellenial.app. The map, the photos and the place list all come from here, so OpenStreetMap, Wikimedia and others never see who is looking at what.
 - Open source (AGPL-3.0).
 
