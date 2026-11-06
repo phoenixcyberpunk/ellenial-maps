@@ -111,7 +111,7 @@ button { font: inherit; color: inherit; }
 .show-more { align-self: center; margin-top: 4px; }
 .empty { padding: 24px 0; text-align: center; color: var(--muted); }
 
-/* placeholders: words in brackets until person-made symbols exist */
+/* no-photo blocks: the setting's colour with Ellen's drawn icon */
 .placeholder { display: flex; align-items: center; justify-content: center; font: 600 12px var(--sans); color: var(--muted); letter-spacing: .3px; }
 .placeholder.placeholder--nature, .placeholder.placeholder--urban, .placeholder.placeholder--gardens { background: var(--green-bg); color: var(--green-ink); }
 .placeholder.placeholder--water { background: var(--blue-bg); color: var(--blue-ink); }
@@ -253,7 +253,7 @@ body.is-locked { overflow: hidden; overscroll-behavior: none; }
 .selcard__open { flex: none; display: inline-flex; align-items: center; gap: 2px; font-size: 14px; font-weight: 600; color: var(--accent-ink); }
 .selcard__close { position: absolute; top: 4px; right: 4px; width: 40px; height: 40px; border: none; background: none; border-radius: 50%; color: var(--muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
 
-/* placeholder now carries the setting's icon above the bracket word */
+/* placeholder carries the setting's icon only */
 .placeholder { flex-direction: column; gap: 4px; text-align: center; }
 .placeholder svg { opacity: .8; }
 
