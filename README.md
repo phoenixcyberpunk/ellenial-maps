@@ -112,3 +112,5 @@ The real data needs the Sweden file from Geofabrik and osmium; see `.github/work
 ## Licence
 
 AGPL-3.0. See `LICENSE`.
+
+The Ellenial name and logo aren't covered by the code licence, see [TRADEMARK.md](TRADEMARK.md).
