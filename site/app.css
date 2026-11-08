@@ -428,3 +428,6 @@ body.is-locked { overflow: hidden; overscroll-behavior: none; }
 .tag .art { margin: -3px 0; }
 /* The corner label on outline cards is a dark pill in light mode and a light pill in dark mode,
    so it takes the other theme's drawing. */
+
+/* "Ellenial" above the app's name (decided 8 Nov 2026): credit where credit is due, without making the name longer. */
+.ellenial-eyebrow { display: block; font-family: 'DM Sans', system-ui, sans-serif; font-size: 11px; line-height: 14px; letter-spacing: .14em; text-transform: uppercase; font-weight: 600; color: var(--muted); margin: 0 0 2px; }

@@ -365,7 +365,7 @@
     home.className = `home home--${state.view}`
 
     fill($('#home-top'),
-      h('div', { class: 'brandbar' }, h('p', { class: 'brand' }, s.title), dogSwitch(false)),
+      h('div', { class: 'brandbar' }, h('p', { class: 'brand' }, h('span', { class: 'ellenial-eyebrow' }, 'Ellenial'), s.title), dogSwitch(false)),
       h('h1', { class: 'sr-only' }, s.homeHeading),
       searchRow(),
       h('div', { class: 'chiprow' },
@@ -570,7 +570,7 @@
     $('#home').classList.add('home--searching')
     const s = t()
     // Cancel takes the dog switch's place while searching.
-    $('#home-top .brandbar').replaceChildren(h('p', { class: 'brand' }, s.title), h('button', { type: 'button', class: 'search__cancel', onclick: closeSearch }, s.cancel))
+    $('#home-top .brandbar').replaceChildren(h('p', { class: 'brand' }, h('span', { class: 'ellenial-eyebrow' }, 'Ellenial'), s.title), h('button', { type: 'button', class: 'search__cancel', onclick: closeSearch }, s.cancel))
     const row = $('#home-top .search')
     if (row && !row.contains(searchInput)) row.replaceWith(searchRow())
     renderResults()
