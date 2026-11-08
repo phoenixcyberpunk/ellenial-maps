@@ -308,6 +308,7 @@
     const s = t()
     return h('footer', { class: 'footer' },
       h('p', { class: 'footer__slogan' }, state.dog ? s.shortWalk : s.footerSlogan),
+      h('p', { class: 'footer__line' }, s.footerMade),
       h('p', { class: 'footer__line' }, s.footerLine),
       h('p', { class: 'footer__links' }, h('a', { href: '#/about' }, s.about)),
       h('div', { class: 'footer__prefs' }, langSwitch(), themeSwitch()))
