@@ -2,7 +2,7 @@
 // person picks one with the EN | SV switch (remembered on that phone only).
 window.STRINGS = {
   en: {
-    title: 'ellenial maps',
+    title: 'Maps',
     tagline: 'Calm, free places to rest and recharge',
     homeHeading: 'What do you need today?',
     more: 'More',
@@ -86,7 +86,7 @@ window.STRINGS = {
     footerLine: 'free · no ads · no tracking · an Ellenial tool',
     footerSlogan: 'Being outside is enough.',
     about: 'About and credits',
-    aboutHeading: 'About ellenial maps',
+    aboutHeading: 'About Maps',
     aboutIntro: 'A calm map of places to rest and recharge without spending money. Made by Ellen, one person, with AI helping on the code. Part of Ellenial, small free tools for everyday life.',
     privacyHeading: 'Your privacy',
     privacyText: "No accounts, no cookies. I only count how many phones open the map each day, nothing more. Your location is only used on your phone, and only when you tap \"Near me\". The map, the photos and the place list all come from Ellenial's own address, so OpenStreetMap, Wikimedia and others never see who is looking at what. All information regarding theme, filters and card map pictures stays private on your phone.",
@@ -115,7 +115,7 @@ window.STRINGS = {
     months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
   },
   sv: {
-    title: 'ellenial maps',
+    title: 'Maps',
     tagline: 'Lugna, gratis platser att vila och ladda om',
     homeHeading: 'Vad behöver du i dag?',
     more: 'Mer',
@@ -199,7 +199,7 @@ window.STRINGS = {
     footerLine: 'gratis · ingen reklam · ingen spårning · ett Ellenial-verktyg',
     footerSlogan: 'Att vara ute räcker.',
     about: 'Om och tack',
-    aboutHeading: 'Om ellenial maps',
+    aboutHeading: 'Om Maps',
     aboutIntro: 'En lugn karta över platser där du kan vila och ladda om utan att betala. Gjord av Ellen, en person, med AI som hjälp med koden. En del av Ellenial, små gratisverktyg för vardagen.',
     privacyHeading: 'Din integritet',
     privacyText: 'Inga konton, inga kakor. Jag räknar bara hur många telefoner som öppnar kartan varje dag, inget mer. Din plats används bara i din telefon, och bara när du trycker på "Nära mig". Kartan, bilderna och platserna kommer från Ellenials egen adress, så OpenStreetMap, Wikimedia och andra ser aldrig vem som tittar på vad. All information om tema, filter och kortens kartbilder stannar privat i din telefon.',

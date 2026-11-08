@@ -361,7 +361,7 @@
     const s = t()
     const home = $('#home')
     const list = visible()
-    document.title = `${s.title} · ${s.tagline}`
+    document.title = `${s.title} · Ellenial`
     home.className = `home home--${state.view}`
 
     fill($('#home-top'),
