@@ -550,7 +550,9 @@ async function addPhotos(places) {
     }
   }
   log(`photos: licence check done (${askF.length} files)`)
-  for (const p of places) p.photo = p.file ? cache.files[p.file]?.photo || cache.files[p.file.replace(/_/g, ' ')]?.photo || null : null
+  // Cached answers can predate the host mapping (full Wikimedia addresses, 9 Nov fix): map them on the way out.
+  const mapped = (ph) => (ph ? { ...ph, src: ownPhotoUrl(ph.src) } : null)
+  for (const p of places) p.photo = p.file ? mapped(cache.files[p.file]?.photo || cache.files[p.file.replace(/_/g, ' ')]?.photo) : null
   trail.push(`photos: ${asked} requests to Wikimedia (${askQ.length} new Wikidata items, ${askF.length} new files)`)
   if (outOfTime()) trail.push('photos: stopped early to stay inside the time limit; the rest is asked next week')
   save()
@@ -585,7 +587,7 @@ async function addGalleries(places, cache, save, stamp) {
         if (!OPEN_LICENCE.test(licence)) continue
         items.push({
           file: page.title,
-          src: ii.thumburl.replace('https://upload.wikimedia.org/', '/photo/'),
+          src: ownPhotoUrl(ii.thumburl),
           w: ii.thumbwidth, h: ii.thumbheight,
           by: plain(meta.Artist?.value).slice(0, 120) || 'Unknown photographer',
           licence, licenceUrl: meta.LicenseUrl?.value || null,
@@ -601,7 +603,7 @@ async function addGalleries(places, cache, save, stamp) {
   let withGallery = 0
   for (const p of withCat) {
     const items = (cache.gal[p.category]?.items || []).filter((x) => x.file !== p.file && x.file !== p.file?.replace(/_/g, ' ')).slice(0, GALLERY_SIZE)
-    if (items.length) { p.gallery = items.map(({ file, ...rest }) => rest); withGallery++ }
+    if (items.length) { p.gallery = items.map(({ file, ...rest }) => ({ ...rest, src: ownPhotoUrl(rest.src) })); withGallery++ }
   }
   save()
   const left = withCat.filter((p) => !fresh(cache.gal[p.category])).length
@@ -707,10 +709,11 @@ async function main() {
       morePhotos: commonsCategory,
       osm: `${p.e.type}/${p.e.id}`,
       dogRule: dog ? dog.id : null,
-      // The place's own shape for cards without a photo; libraries' outlines are just the building.
-      outline: p.kind === 'library' ? null : p.outline || null,
+      // The place's own shape for cards without a photo. For libraries it's the building: its size
+      // stays hidden (above), but the shape on the map shows where it is (Ellen, 9 Nov).
+      outline: p.outline || null,
       // The outline's own corners [south, west, north, east], so the place page can draw it on a real map.
-      obox: p.kind === 'library' || !p.outline ? null : p.obox.map(round),
+      obox: !p.outline ? null : p.obox.map(round),
       // How many extra photos its gallery file (gallery/<id>.json) holds; 0 means none.
       gallery: p.gallery?.length || 0,
     }

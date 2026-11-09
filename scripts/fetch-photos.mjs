@@ -27,6 +27,9 @@ const USER_AGENT = 'ellenial-maps-data/2.0 (https://maps.ellenial.app)'
 const HOSTS = { '/photo/': 'https://upload.wikimedia.org/', '/thumb/': 'https://thumb.wikimedia.org/' }
 const dryRun = process.argv.includes('--dry-run')
 
+// Full Wikimedia addresses (from cache entries older than the host mapping) count too: they're
+// turned into the /photo/ or /thumb/ form first (9 Nov fix; ~9,200 photos had slipped past).
+const shortForm = (s) => (typeof s === 'string' ? s.split('?')[0].replace('https://upload.wikimedia.org/', '/photo/').replace('https://thumb.wikimedia.org/', '/thumb/') : s)
 const isRemote = (s) => typeof s === 'string' && (s.startsWith('/photo/') || s.startsWith('/thumb/'))
 const nameFor = (src) => createHash('sha1').update(src.split('?')[0]).digest('hex').slice(0, 20) + '.jpg'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -39,6 +42,14 @@ function jsonFiles(dir) {
     else if (e.name.endsWith('.json')) out.push(p)
   }
   return out
+}
+
+function normalise(node) {
+  if (Array.isArray(node)) for (const v of node) normalise(v)
+  else if (node && typeof node === 'object') {
+    if (typeof node.src === 'string' && node.src.startsWith('https://') && /wikimedia\.org\//.test(node.src)) node.src = shortForm(node.src)
+    for (const v of Object.values(node)) normalise(v)
+  }
 }
 
 // Every object with a photo address, wherever it sits in a file.
@@ -85,11 +96,17 @@ async function main() {
   const started = Date.now()
   const files = jsonFiles(DATA)
   const docs = files.map((f) => ({ f, d: JSON.parse(readFileSync(f, 'utf8')) }))
+  for (const { d } of docs) normalise(d)
   const all = docs.flatMap(({ f, d }) => photoRecords(d, []).map((r) => ({ f, r })))
   const remote = [...new Set(all.filter((x) => isRemote(x.r.src)).map((x) => x.r.src.split('?')[0]))]
   if (!existsSync(OUT)) mkdirSync(OUT, { recursive: true })
   const have = new Set(readdirSync(OUT).filter((n) => n.endsWith('.jpg')))
-  const todo = remote.filter((s) => !have.has(nameFor(s)))
+  const inGallery = new Set(all.filter((x) => x.f.includes('/gallery/')).map((x) => x.r.src.split('?')[0]))
+  // Order: place photos before gallery photos, Gothenburg's square (230_23) outwards, so if time
+  // runs out the cards people see most are done first.
+  const fileOf = new Map(all.map((x) => [x.r.src.split('?')[0], x.f]))
+  const away = (s) => { const m = /(\d+)_(\d+)\.json$/.exec(fileOf.get(s) || ''); return m ? Math.hypot(m[1] - 230, m[2] - 23) : 999 }
+  const todo = remote.filter((s) => !have.has(nameFor(s))).sort((a, b) => (inGallery.has(a) - inGallery.has(b)) || (away(a) - away(b)))
   console.log(`photos: ${remote.length} remote addresses, ${remote.length - todo.length} already copied, ${todo.length} to fetch`)
   if (dryRun) { for (const s of todo.slice(0, 20)) console.log('  would fetch', candidates(s)[0]); return }
 
