@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-09T13:04:41.255Z",
+ "generated": "2026-11-09T13:22:27.067Z",
  "source": "Geofabrik Sweden extract (OpenStreetMap)",
  "features": 138404,
  "landmarks": {
@@ -24,9 +24,9 @@
   "wikidata beach: 26 with photos",
   "wikidata square: 334 with photos",
   "wikidata garden: 215 with photos",
-  "wikidata library: failed (Unterminated string in JSON at position 65479 (line 2094 column 115))",
-  "wikidata viewpoint: failed (502 from query.wikidata.org)",
-  "photos: 255 matched to Wikidata by name and location (2900 names)",
+  "wikidata library: 154 with photos",
+  "wikidata viewpoint: 20 with photos",
+  "photos: 269 matched to Wikidata by name and location (3054 names)",
   "photos: 101 from photos taken at the place (0 new lookups, 3877 places still to check in later weeks)",
   "photos: 0 requests to Wikimedia (0 new Wikidata items, 0 new files)",
   "galleries: 1862 places with a gallery (0 new categories asked, 0 left for later weeks)",
@@ -43,20 +43,20 @@
    "libraries": 665,
    "view": 583
   },
-  "withPhoto": 2921,
+  "withPhoto": 2935,
   "photoFrom": {
    "linked": 2566,
-   "wikidata-match": 255,
+   "wikidata-match": 269,
    "nearby": 100
   },
-  "withoutPhoto": 10964,
+  "withoutPhoto": 10950,
   "withoutPhotoBySetting": {
    "nature": 4773,
    "urban": 2904,
    "water": 1519,
    "gardens": 171,
    "squares": 474,
-   "libraries": 591,
+   "libraries": 577,
    "view": 532
   },
   "toilets": 7420,
@@ -65,5 +65,5 @@
   "squares": 705,
   "towns": 4685
  },
- "seconds": 72
+ "seconds": 71
 }
