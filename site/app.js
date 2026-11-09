@@ -318,12 +318,19 @@
 
   function footer() {
     const s = t()
-    return h('footer', { class: 'footer' },
-      h('p', { class: 'footer__slogan' }, state.dog ? s.shortWalk : s.footerSlogan),
-      h('p', { class: 'footer__line' }, h('a', { href: 'https://ellenial.app/drawings' }, s.drawn), s.footerMade),
-      h('p', { class: 'footer__line' }, s.footerLine),
-      h('p', { class: 'footer__links' }, h('a', { href: '#/about' }, s.about)),
-      h('div', { class: 'footer__prefs' }, langSwitch(), themeSwitch()))
+    return h('footer', { class: 'footer ell-foot' },
+      h('div', { class: 'ell-notes' },
+        h('p', null, state.dog ? s.shortWalk : s.footerSlogan),
+        h('p', null, h('a', { href: '#/about' }, s.about))),
+      h('div', { class: 'ell-shared' },
+        h('p', null, h('a', { href: 'https://ellenial.app/drawings' }, s.drawn), s.footerMade),
+        h('p', null, s.footerPromise),
+        h('p', null, s.footerCounter),
+        h('p', null,
+          h('a', { href: 'https://ellenial.app' }, s.footerTool), ' · ',
+          h('a', { href: 'https://github.com/phoenixcyberpunk/ellenial-maps' }, s.footerSource), ' · ',
+          h('a', { href: 'https://ellenial.app/thanks' }, s.footerThanks))),
+      h('div', { class: 'footer__prefs ell-controls' }, langSwitch(), themeSwitch()))
   }
 
   // Auto / Light / Dark, from the shared Ellenial pattern (ellenial-theme.js), saved on this phone only.

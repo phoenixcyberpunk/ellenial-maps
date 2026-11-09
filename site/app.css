@@ -450,3 +450,16 @@ body.is-locked { overflow: hidden; overscroll-behavior: none; }
 /* point-only places: a map picture behind, the drawn icon on a disc like the pin (9 Nov) */
 .placeholder--map { background-size: cover; background-position: center; }
 .placeholder--map > img, .placeholder--map > svg { box-sizing: content-box; padding: 6px; border-radius: 50%; background: var(--surface); border: 2px solid var(--accent); opacity: 1; width: 28px !important; height: 28px !important; }
+
+/* Ellenial shared footer (9 Nov 2026): the same lines, order and look in every app.
+   App-specific notes on top in Fraunces italic, the shared block in DM Sans, controls last. */
+@font-face { font-family: 'Fraunces'; font-style: italic; font-weight: 400; font-display: swap; src: url('/fonts/fraunces-latin-400-italic.woff2') format('woff2'); }
+.ell-foot { display: flex; flex-direction: column; align-items: center; gap: 16px; margin-top: 28px; padding: 20px 16px 24px; border-top: 1px solid var(--line, rgba(127,127,127,.25)); text-align: center; font-family: 'DM Sans', system-ui, sans-serif; font-size: 13px; line-height: 18px; color: var(--muted); }
+.ell-foot p { margin: 0; }
+.ell-foot a { color: var(--accent); }
+.ell-notes { display: flex; flex-direction: column; gap: 4px; font-family: 'Fraunces', Georgia, serif; font-style: italic; font-weight: 400; line-height: 19px; max-width: 520px; }
+.ell-shared { display: flex; flex-direction: column; gap: 6px; }
+.ell-controls { display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0; }
+.footer.ell-foot { margin-top: 32px; }
+.sheet .footer.ell-foot { margin-top: 20px; }
+.ell-foot .footer__prefs { font-size: 12px; }
