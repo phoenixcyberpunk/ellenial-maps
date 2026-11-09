@@ -215,7 +215,7 @@ window.STRINGS = {
     footerPromise: 'Gratis · inga annonser · inga trackers',
     footerCounter: 'I den här appen: en enkel besöksräknare',
     footerTool: 'Ett Ellenial-verktyg',
-    footerSource: 'Källkod',
+    footerSource: 'GitHub',
     footerThanks: 'Tack',
     drawn: 'Ritat',
     footerMade: ' och designat av mig, kodat med hjälp av AI.',
