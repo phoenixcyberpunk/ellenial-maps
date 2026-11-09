@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-09T04:15:08.265Z",
+ "generated": "2026-11-09T13:04:41.255Z",
  "source": "Geofabrik Sweden extract (OpenStreetMap)",
  "features": 138404,
  "landmarks": {
@@ -19,17 +19,17 @@
  "trail": [
   "read 138404 features from work/area.geojsonseq",
   "13885 places after merging twins",
-  "wikidata protected area: 2179 with photos",
+  "wikidata protected area: 2180 with photos",
   "wikidata park: 645 with photos",
   "wikidata beach: 26 with photos",
   "wikidata square: 334 with photos",
   "wikidata garden: 215 with photos",
-  "wikidata library: 154 with photos",
-  "wikidata viewpoint: 20 with photos",
-  "photos: 269 matched to Wikidata by name and location (3054 names)",
-  "photos: 101 from photos taken at the place (56 new lookups, 3821 places still to check in later weeks)",
-  "photos: 59 requests to Wikimedia (64 new Wikidata items, 5 new files)",
-  "galleries: 1862 places with a gallery (2 new categories asked, 0 left for later weeks)",
+  "wikidata library: failed (Unterminated string in JSON at position 65479 (line 2094 column 115))",
+  "wikidata viewpoint: failed (502 from query.wikidata.org)",
+  "photos: 255 matched to Wikidata by name and location (2900 names)",
+  "photos: 101 from photos taken at the place (0 new lookups, 3877 places still to check in later weeks)",
+  "photos: 0 requests to Wikimedia (0 new Wikidata items, 0 new files)",
+  "galleries: 1862 places with a gallery (0 new categories asked, 0 left for later weeks)",
   "search: 13885 places, 4685 towns and areas, 292 parts"
  ],
  "counts": {
@@ -43,20 +43,20 @@
    "libraries": 665,
    "view": 583
   },
-  "withPhoto": 2935,
+  "withPhoto": 2921,
   "photoFrom": {
    "linked": 2566,
-   "wikidata-match": 269,
+   "wikidata-match": 255,
    "nearby": 100
   },
-  "withoutPhoto": 10950,
+  "withoutPhoto": 10964,
   "withoutPhotoBySetting": {
    "nature": 4773,
    "urban": 2904,
    "water": 1519,
    "gardens": 171,
    "squares": 474,
-   "libraries": 577,
+   "libraries": 591,
    "view": 532
   },
   "toilets": 7420,
@@ -65,5 +65,5 @@
   "squares": 705,
   "towns": 4685
  },
- "seconds": 137
+ "seconds": 72
 }
