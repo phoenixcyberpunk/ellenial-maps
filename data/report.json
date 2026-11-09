@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-09T13:22:27.067Z",
+ "generated": "2026-11-09T18:39:52.666Z",
  "source": "Geofabrik Sweden extract (OpenStreetMap)",
  "features": 138404,
  "landmarks": {
@@ -19,16 +19,16 @@
  "trail": [
   "read 138404 features from work/area.geojsonseq",
   "13885 places after merging twins",
-  "wikidata protected area: 2180 with photos",
+  "wikidata protected area: failed (Unterminated string in JSON at position 915733 (line 29709 column 64))",
   "wikidata park: 645 with photos",
   "wikidata beach: 26 with photos",
   "wikidata square: 334 with photos",
   "wikidata garden: 215 with photos",
   "wikidata library: 154 with photos",
   "wikidata viewpoint: 20 with photos",
-  "photos: 269 matched to Wikidata by name and location (3054 names)",
-  "photos: 101 from photos taken at the place (0 new lookups, 3877 places still to check in later weeks)",
-  "photos: 0 requests to Wikimedia (0 new Wikidata items, 0 new files)",
+  "photos: 115 matched to Wikidata by name and location (1071 names)",
+  "photos: 122 from photos taken at the place (93 new lookups, 3878 places still to check in later weeks)",
+  "photos: 94 requests to Wikimedia (0 new Wikidata items, 15 new files)",
   "galleries: 1862 places with a gallery (0 new categories asked, 0 left for later weeks)",
   "search: 13885 places, 4685 towns and areas, 292 parts"
  ],
@@ -43,21 +43,21 @@
    "libraries": 665,
    "view": 583
   },
-  "withPhoto": 2935,
+  "withPhoto": 2802,
   "photoFrom": {
    "linked": 2566,
-   "wikidata-match": 269,
-   "nearby": 100
+   "nearby": 121,
+   "wikidata-match": 115
   },
-  "withoutPhoto": 10950,
+  "withoutPhoto": 11083,
   "withoutPhotoBySetting": {
-   "nature": 4773,
-   "urban": 2904,
-   "water": 1519,
+   "nature": 4893,
+   "urban": 2905,
+   "water": 1523,
    "gardens": 171,
    "squares": 474,
    "libraries": 577,
-   "view": 532
+   "view": 540
   },
   "toilets": 7420,
   "water": 985,
@@ -65,5 +65,5 @@
   "squares": 705,
   "towns": 4685
  },
- "seconds": 71
+ "seconds": 219
 }
