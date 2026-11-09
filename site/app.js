@@ -180,8 +180,11 @@
   function placeholder(setting, cls, p) {
     const big = /pcard__img|hero__img/.test(cls || '')
     if (p && Array.isArray(p.outline) && p.outline.length >= 8) return outlineCard(p, cls, big)
-    return h('div', { class: `placeholder placeholder--${setting} ${cls || ''}`, role: 'img', 'aria-label': t().noPhoto },
+    const block = h('div', { class: `placeholder placeholder--${setting} ${cls || ''}`, role: 'img', 'aria-label': t().noPhoto },
       settingIcon(setting, /hero__img/.test(cls || '') ? 56 : big ? 40 : 24))
+    // Ellen, 9 Nov: point-only places get the same map picture as outline cards, the icon on top as a pin.
+    if (p && /pcard__img/.test(cls || '') && Number.isFinite(p.lat) && Number.isFinite(p.lon)) cardMap(p, block, 'placeholder--map')
+    return block
   }
 
   function outlineCard(p, cls, big) {
@@ -216,13 +219,16 @@
   const snapUrls = new Map() // key -> object URL, for this visit
   const snapQueue = []
   let snapMap = null, snapBusy = false, snapCache = null
-  const snapKey = (p) => `${SNAP_VERSION}-${isDark() ? 'd' : 'l'}-${p.id}-${p.outline.length}-${p.outline.slice(2, 8).join('.')}`
+  const hasShape = (p) => Array.isArray(p.outline) && p.outline.length >= 8 && Array.isArray(p.obox)
+  const snapKey = (p) => hasShape(p)
+    ? `${SNAP_VERSION}-${isDark() ? 'd' : 'l'}-${p.id}-${p.outline.length}-${p.outline.slice(2, 8).join('.')}`
+    : `${SNAP_VERSION}-${isDark() ? 'd' : 'l'}-${p.id}-pt-${p.lat.toFixed(5)},${p.lon.toFixed(5)}`
   const snapSeen = new IntersectionObserver((entries) => {
     for (const e of entries) if (e.isIntersecting) { snapSeen.unobserve(e.target); snapQueue.push(e.target._snap); runSnaps() }
   }, { rootMargin: '200px' })
-  function cardMap(p, card) {
+  function cardMap(p, card, mapClass = 'outline--map') {
     const key = snapKey(p)
-    const show = (url) => { card.style.backgroundImage = `url("${url}")`; card.classList.add('outline--map') }
+    const show = (url) => { card.style.backgroundImage = `url("${url}")`; card.classList.add(mapClass) }
     if (snapUrls.has(key)) { show(snapUrls.get(key)); return }
     card._snap = { p, key, show }
     // Already drawn on an earlier visit: straight from this phone's cache, no queue.
@@ -275,8 +281,14 @@
       const m = snapMap
       const timer = setTimeout(() => resolve(null), 8000)
       m._ready.then(() => {
-        m.getSource('shape').setData({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [outlineGeo(p)] }, properties: {} })
-        m.fitBounds([[p.obox[1], p.obox[0]], [p.obox[3], p.obox[2]]], { padding: 14, maxZoom: 16, duration: 0 })
+        if (hasShape(p)) {
+          m.getSource('shape').setData({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [outlineGeo(p)] }, properties: {} })
+          m.fitBounds([[p.obox[1], p.obox[0]], [p.obox[3], p.obox[2]]], { padding: 14, maxZoom: 16, duration: 0 })
+        } else {
+          // A point: just the streets around it; the card puts the icon on top, in the middle.
+          m.getSource('shape').setData({ type: 'FeatureCollection', features: [] })
+          m.jumpTo({ center: [p.lon, p.lat], zoom: 16 })
+        }
         m.once('idle', () => { clearTimeout(timer); m.getCanvas().toBlob((b) => resolve(b), 'image/webp', 0.8) })
         m.triggerRepaint()
       })
@@ -366,7 +378,7 @@
     home.className = `home home--${state.view}`
 
     fill($('#home-top'),
-      h('div', { class: 'brandbar' }, h('p', { class: 'brand' }, h('span', { class: 'ellenial-eyebrow' }, 'Ellenial'), s.title), dogSwitch(false)),
+      h('div', { class: 'brandbar' }, brandMark(), h('div', { class: 'brandbar__end' }, helpBtn(), dogSwitch(false))),
       h('h1', { class: 'sr-only' }, s.homeHeading),
       searchRow(),
       h('div', { class: 'chiprow' },
@@ -571,7 +583,7 @@
     $('#home').classList.add('home--searching')
     const s = t()
     // Cancel takes the dog switch's place while searching.
-    $('#home-top .brandbar').replaceChildren(h('p', { class: 'brand' }, h('span', { class: 'ellenial-eyebrow' }, 'Ellenial'), s.title), h('button', { type: 'button', class: 'search__cancel', onclick: closeSearch }, s.cancel))
+    $('#home-top .brandbar').replaceChildren(brandMark(), h('button', { type: 'button', class: 'search__cancel', onclick: closeSearch }, s.cancel))
     const row = $('#home-top .search')
     if (row && !row.contains(searchInput)) row.replaceWith(searchRow())
     renderResults()
@@ -882,6 +894,37 @@
     map.getSource('em-me').setData(fc(state.me ? [state.me] : []))
   }
 
+  // ---------- app icon + "?" in the header (Ellen, 9 Nov) ----------
+  // The icon is Ellen's drawing, the same as on the home screen. "?" opens a short sheet saying what
+  // the map is for, so nobody expects a Google Maps. Never opens by itself (no-explanation rule).
+  function brandMark() {
+    return h('div', { class: 'brandmark' },
+      h('img', { class: 'brandmark__icon', src: '/icon-192.png', alt: '', width: 38, height: 38 }),
+      h('p', { class: 'brand' }, h('span', { class: 'ellenial-eyebrow' }, 'Ellenial'), t().title))
+  }
+  function helpBtn() {
+    return h('a', { class: 'help-btn', href: '#/help', 'aria-label': t().helpLabel }, '?')
+  }
+  function renderHelpSheet() {
+    const s = t()
+    const close = (e) => { if (internalNav && history.length > 1) { e?.preventDefault(); history.back() } else location.hash = '#/' }
+    const row = (yes, title, text) => h('div', { class: 'help__row' },
+      h('span', { class: `help__mark help__mark--${yes ? 'yes' : 'no'}`, 'aria-hidden': 'true' }, yes ? '✓' : '✕'),
+      h('div', null, h('p', { class: 'help__title' }, title), h('p', { class: 'help__text' }, text)))
+    return h('div', { class: 'modal', onkeydown: (e) => { if (e.key === 'Escape') close() } },
+      h('div', { class: 'modal__backdrop', onclick: close }),
+      h('div', { class: 'modal__sheet', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'help-title' },
+        h('div', { class: 'modal__head' },
+          h('h2', { id: 'help-title', class: 'topbar__title' }, s.helpHeading),
+          h('button', { class: 'round-btn', type: 'button', 'aria-label': s.close, onclick: close }, svg(ICON.close))),
+        h('div', { class: 'modal__body help' },
+          row(true, s.helpYesTitle, s.helpYesText),
+          row(false, s.helpShopsTitle, s.helpShopsText),
+          row(false, s.helpNavTitle, s.helpNavText),
+          h('p', { class: 'help__small' }, s.helpSmall)),
+        h('div', { class: 'modal__foot' }, h('button', { class: 'pill-btn pill-btn--wide', type: 'button', onclick: close }, s.helpOk))))
+  }
+
   // ---------- filters (a sheet over the home screen) ----------
   function renderFiltersSheet() {
     const s = t()
@@ -1151,7 +1194,7 @@
     const route = location.hash.replace(/^#\/?/, '')
     const page = $('#page')
     const [name, arg, arg2] = route.split('/')
-    const onHome = !name || name === 'filters'
+    const onHome = !name || name === 'filters' || name === 'help'
     // In the Both view the map and panel fill the screen, so the page itself doesn't scroll.
     document.body.classList.toggle('is-locked', onHome && mapShown())
     if (onHome) {
@@ -1161,8 +1204,8 @@
       fill(page)
       renderHome()
       if (wasAway) requestAnimationFrame(() => { $('#panel-body').scrollTop = panelScroll })
-      fill($('#sheet-root'), name === 'filters' ? renderFiltersSheet() : null)
-      if (name === 'filters') requestAnimationFrame(() => $('.modal__sheet .round-btn')?.focus({ preventScroll: true }))
+      fill($('#sheet-root'), name === 'filters' ? renderFiltersSheet() : name === 'help' ? renderHelpSheet() : null)
+      if (name === 'filters' || name === 'help') requestAnimationFrame(() => $('.modal__sheet .round-btn')?.focus({ preventScroll: true }))
       render.last = name || ''
       return
     }
@@ -1183,7 +1226,7 @@
   addEventListener('hashchange', () => {
     const route = location.hash.replace(/^#\/?/, '')
     const toHome = !route
-    const fromSheet = lastRoute === 'filters'
+    const fromSheet = lastRoute === 'filters' || lastRoute === 'help'
     render()
     if (toHome && lastRoute && !fromSheet) requestAnimationFrame(() => scrollTo(0, homeScroll))
     lastRoute = route
