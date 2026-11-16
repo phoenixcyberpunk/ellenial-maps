@@ -1,7 +1,7 @@
 {
- "generated": "2026-11-09T18:39:52.666Z",
+ "generated": "2026-11-16T04:40:55.119Z",
  "source": "Geofabrik Sweden extract (OpenStreetMap)",
- "features": 138404,
+ "features": 138648,
  "landmarks": {
   "Slottsskogen": true,
   "Delsjö": true,
@@ -17,53 +17,53 @@
   "Stadsparken": true
  },
  "trail": [
-  "read 138404 features from work/area.geojsonseq",
-  "13885 places after merging twins",
-  "wikidata protected area: failed (Unterminated string in JSON at position 915733 (line 29709 column 64))",
+  "read 138648 features from work/area.geojsonseq",
+  "14029 places after merging twins",
+  "wikidata protected area: 2181 with photos",
   "wikidata park: 645 with photos",
   "wikidata beach: 26 with photos",
   "wikidata square: 334 with photos",
   "wikidata garden: 215 with photos",
   "wikidata library: 154 with photos",
-  "wikidata viewpoint: 20 with photos",
-  "photos: 115 matched to Wikidata by name and location (1071 names)",
-  "photos: 122 from photos taken at the place (93 new lookups, 3878 places still to check in later weeks)",
-  "photos: 94 requests to Wikimedia (0 new Wikidata items, 15 new files)",
-  "galleries: 1862 places with a gallery (0 new categories asked, 0 left for later weeks)",
-  "search: 13885 places, 4685 towns and areas, 292 parts"
+  "wikidata viewpoint: 22 with photos",
+  "photos: 260 matched to Wikidata by name and location (3056 names)",
+  "photos: 107 from photos taken at the place (112 new lookups, 3871 places still to check in later weeks)",
+  "photos: 119 requests to Wikimedia (154 new Wikidata items, 13 new files)",
+  "galleries: 1872 places with a gallery (12 new categories asked, 0 left for later weeks)",
+  "search: 14029 places, 4685 towns and areas, 292 parts"
  ],
  "counts": {
-  "places": 13885,
+  "places": 14029,
   "bySetting": {
-   "nature": 6871,
-   "water": 1697,
-   "urban": 3264,
+   "nature": 7014,
+   "water": 1696,
+   "urban": 3265,
    "gardens": 193,
    "squares": 612,
    "libraries": 665,
-   "view": 583
+   "view": 584
   },
-  "withPhoto": 2802,
+  "withPhoto": 2948,
   "photoFrom": {
-   "linked": 2566,
-   "nearby": 121,
-   "wikidata-match": 115
+   "linked": 2582,
+   "wikidata-match": 260,
+   "nearby": 106
   },
-  "withoutPhoto": 11083,
+  "withoutPhoto": 11081,
   "withoutPhotoBySetting": {
-   "nature": 4893,
+   "nature": 4903,
    "urban": 2905,
-   "water": 1523,
+   "water": 1518,
    "gardens": 171,
    "squares": 474,
    "libraries": 577,
-   "view": 540
+   "view": 533
   },
-  "toilets": 7420,
+  "toilets": 7419,
   "water": 985,
-  "dogParks": 1113,
+  "dogParks": 1115,
   "squares": 705,
   "towns": 4685
  },
- "seconds": 219
+ "seconds": 140
 }
