@@ -1,0 +1,21 @@
+name: Probe Geofabrik (temporary)
+on:
+  push:
+    branches: [geofabrik-paths]
+    paths: [.github/workflows/probe-geofabrik.yml]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          UA='ellenial-maps-data/2.0 (https://maps.ellenial.app)'
+          for u in europe/sweden-latest.osm.pbf europe/sweden/sweden-latest.osm.pbf europe/sweden.html europe/sweden/index.html europe/sweden/ ; do
+            echo "=== $u (our UA)"; curl -sS -o /dev/null -L -A "$UA" -w '%{http_code} final=%{url_effective} redirects=%{num_redirects}\n' "https://download.geofabrik.de/$u" || true
+            curl -sSIL -A "$UA" "https://download.geofabrik.de/$u" 2>&1 | grep -iE '^(HTTP|location)' || true
+            echo "=== $u (default UA)"; curl -sS -o /dev/null -L -w '%{http_code} final=%{url_effective}\n' "https://download.geofabrik.de/$u" || true
+          done
+          echo "=== sweden folder listing / page links"
+          curl -sSL -A "$UA" https://download.geofabrik.de/europe/sweden.html | grep -oE 'href="[^"]*(pbf|sweden)[^"]*"' | sort -u | head -30 || true
+          curl -sSL -A "$UA" https://download.geofabrik.de/europe/sweden/ | grep -oE 'href="[^"]*"' | head -30 || true
+          echo "=== index entry"
+          curl -sSL -A "$UA" https://download.geofabrik.de/index-v1-nogeom.json | jq -c '.features[].properties | select(.id=="sweden" or .id=="norway")'
