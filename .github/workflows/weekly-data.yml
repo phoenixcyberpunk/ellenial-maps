@@ -33,10 +33,10 @@ concurrency:
 
 env:
   # Geofabrik moved every extract into its own folder on 2026-11-19 (the old flat
-  # europe/sweden-latest.osm.pbf now redirects to a 404). If this ever moves again, the
-  # download step asks Geofabrik's own index for Sweden's current address.
-  SOURCE_URL: 'https://download.geofabrik.de/europe/sweden/sweden-latest.osm.pbf'
-  SOURCE_INDEX: 'https://download.geofabrik.de/index-v1-nogeom.json'
+  # europe/sweden-latest.osm.pbf now redirects to a 404). Since then "latest" has sometimes pointed
+  # at a dated file that isn't there yet, so the download step falls back to the newest dated file
+  # (sweden-YYMMDD.osm.pbf) from the last 7 days that actually downloads.
+  SOURCE_DIR: 'https://download.geofabrik.de/europe/sweden'
 
 jobs:
   data:
@@ -53,13 +53,18 @@ jobs:
         run: |
           mkdir -p work
           UA='ellenial-maps-data/2.0 (https://maps.ellenial.app)'
-          if ! curl -fsSL --retry 3 --retry-delay 30 -A "$UA" -o work/sweden.osm.pbf "$SOURCE_URL"; then
-            echo "::warning::$SOURCE_URL failed; asking Geofabrik's index for Sweden's current address"
-            URL=$(curl -fsSL --retry 3 --retry-delay 30 -A "$UA" "$SOURCE_INDEX" \
-              | jq -r '.features[].properties | select(.id == "sweden") | .urls.pbf' | head -1)
-            if [ -z "$URL" ] || [ "$URL" = null ]; then echo "::error::Sweden not found in Geofabrik's index"; exit 1; fi
-            echo "::warning::Geofabrik's index says: $URL (update SOURCE_URL)"
-            curl -fsSL --retry 3 --retry-delay 30 -A "$UA" -o work/sweden.osm.pbf "$URL"
+          get() { curl -fsSL --retry 3 --retry-delay 30 -A "$UA" -o work/sweden.osm.pbf "$1"; }
+          if get "$SOURCE_DIR/sweden-latest.osm.pbf"; then
+            echo "Downloaded sweden-latest"
+          else
+            ok=
+            for d in 1 2 3 4 5 6 7; do
+              f="sweden-$(date -u -d "-$d day" +%y%m%d).osm.pbf"
+              echo "::warning::sweden-latest failed; trying $f"
+              if get "$SOURCE_DIR/$f"; then ok=$f; break; fi
+            done
+            if [ -z "$ok" ]; then echo "::error::No Sweden file from Geofabrik in the last 7 days"; exit 1; fi
+            echo "::warning::Used $ok ($d days old) because Geofabrik's latest file was missing"
           fi
           ls -lh work/sweden.osm.pbf
       - name: Keep only the tags we use
