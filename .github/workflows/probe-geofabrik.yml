@@ -9,13 +9,10 @@ jobs:
     steps:
       - run: |
           UA='ellenial-maps-data/2.0 (https://maps.ellenial.app)'
-          for u in europe/sweden-latest.osm.pbf europe/sweden/sweden-latest.osm.pbf europe/sweden.html europe/sweden/index.html europe/sweden/ ; do
-            echo "=== $u (our UA)"; curl -sS -o /dev/null -L -A "$UA" -w '%{http_code} final=%{url_effective} redirects=%{num_redirects}\n' "https://download.geofabrik.de/$u" || true
-            curl -sSIL -A "$UA" "https://download.geofabrik.de/$u" 2>&1 | grep -iE '^(HTTP|location)' || true
-            echo "=== $u (default UA)"; curl -sS -o /dev/null -L -w '%{http_code} final=%{url_effective}\n' "https://download.geofabrik.de/$u" || true
-          done
-          echo "=== sweden folder listing / page links"
-          curl -sSL -A "$UA" https://download.geofabrik.de/europe/sweden.html | grep -oE 'href="[^"]*(pbf|sweden)[^"]*"' | sort -u | head -30 || true
-          curl -sSL -A "$UA" https://download.geofabrik.de/europe/sweden/ | grep -oE 'href="[^"]*"' | head -30 || true
-          echo "=== index entry"
-          curl -sSL -A "$UA" https://download.geofabrik.de/index-v1-nogeom.json | jq -c '.features[].properties | select(.id=="sweden" or .id=="norway")'
+          echo "=== dated pbf files listed in the folder (2026)"
+          curl -sSL -A "$UA" https://download.geofabrik.de/europe/sweden/ | grep -oE 'sweden-26[0-9]{4}\.osm\.pbf' | sort -u | tail -15
+          echo "=== HEAD the last 10 days"
+          for d in $(seq 0 10); do f=sweden-$(date -u -d "-$d day" +%y%m%d).osm.pbf
+            echo "$f $(curl -sS -o /dev/null -I -A "$UA" -w '%{http_code} %{size_download} len=' https://download.geofabrik.de/europe/sweden/$f)$(curl -sSI -A "$UA" https://download.geofabrik.de/europe/sweden/$f | grep -i content-length | tr -d '\r')"; done
+          echo "=== state.txt"; curl -sSL -A "$UA" https://download.geofabrik.de/europe/sweden/sweden-updates/state.txt || true
+          curl -sSL -A "$UA" https://download.geofabrik.de/europe/sweden-updates/state.txt | head -5 || true
