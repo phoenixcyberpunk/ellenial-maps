@@ -104,7 +104,7 @@ The real data needs the Sweden file from Geofabrik and osmium; see `.github/work
 - Map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, ODbL.
 - Map tiles: [OpenFreeMap](https://openfreemap.org), built on OpenMapTiles.
 - Photos: [Wikimedia Commons](https://commons.wikimedia.org), credited per photo.
-- Map engine: [MapLibre GL JS](https://maplibre.org) (BSD-3-Clause).
+- Map engine: [MapLibre GL JS](https://maplibre.org) (BSD-3-Clause), version 6: an ES module loaded by `site/maplibre.js`, which then starts `app.js`. Needs WebGL2; without it the app shows its lists without the map. Copied by `build.mjs` into `/vendor/maplibre-<version>/`, so a new version gets a new address past the year-long cache.
 - Icons: [Lucide](https://lucide.dev) (ISC), made by its contributors.
 - Fonts: [Fraunces](https://github.com/undercasetype/Fraunces) and [DM Sans](https://github.com/googlefonts/dm-fonts), SIL Open Font License, via Fontsource.
 - Dog rules: [Göteborg & Co](https://www.goteborg.com/guider/hundvanliga-goteborg) and Jaktlagen (1987:259).

@@ -763,9 +763,10 @@
   function initMap() {
     if (map || !window.maplibregl) return
     try {
-      const gl = document.createElement('canvas').getContext('webgl2') || document.createElement('canvas').getContext('webgl')
-      if (!gl) throw new Error('no webgl')
-      window.maplibregl.setWorkerUrl('/vendor/maplibre-gl-csp-worker.js')
+      // MapLibre 6 needs WebGL2 (23 Nov 2026); without it the app shows its lists without the map.
+      const gl = document.createElement('canvas').getContext('webgl2')
+      if (!gl) throw new Error('no webgl2')
+      // The map engine finds its worker next to itself (/vendor/maplibre-<version>/), same origin.
       let dark = isDark()
       map = new window.maplibregl.Map({
         container: 'map',

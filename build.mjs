@@ -23,10 +23,15 @@ const FONTS = [
 rmSync('dist', { recursive: true, force: true })
 cpSync('site', 'dist', { recursive: true })
 
-mkdirSync('dist/vendor', { recursive: true })
-for (const f of ['maplibre-gl-csp.js', 'maplibre-gl-csp-worker.js', 'maplibre-gl.css', 'LICENSE.txt']) {
-  copyFileSync(`node_modules/maplibre-gl/dist/${f}`, `dist/vendor/${f === 'LICENSE.txt' ? 'maplibre-LICENSE.txt' : f}`)
-}
+// MapLibre 6 ships as ES modules only (no CSP build any more); the worker is found next to the main file.
+// They go in a folder named after the version, because /vendor/ is cached for a year: a new version
+// gets a new address, so no phone mixes an old cached file with a new one. __MAPLIBRE__ in the page
+// and in maplibre.js becomes that folder.
+const MAPLIBRE = `/vendor/maplibre-${JSON.parse(readFileSync('node_modules/maplibre-gl/package.json', 'utf8')).version}`
+mkdirSync(`dist${MAPLIBRE}`, { recursive: true })
+for (const f of ['maplibre-gl.mjs', 'maplibre-gl-worker.mjs', 'maplibre-gl.css']) copyFileSync(`node_modules/maplibre-gl/dist/${f}`, `dist${MAPLIBRE}/${f}`)
+copyFileSync('node_modules/maplibre-gl/LICENSE.txt', 'dist/vendor/maplibre-LICENSE.txt')
+for (const f of ['dist/index.html', 'dist/maplibre.js']) writeFileSync(f, readFileSync(f, 'utf8').replaceAll('__MAPLIBRE__', MAPLIBRE))
 
 mkdirSync('dist/fonts', { recursive: true })
 for (const [family, weights] of FONTS) {
