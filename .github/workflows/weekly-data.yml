@@ -32,7 +32,11 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  SOURCE_URL: 'https://download.geofabrik.de/europe/sweden-latest.osm.pbf'
+  # Geofabrik moved every extract into its own folder on 2026-11-19 (the old flat
+  # europe/sweden-latest.osm.pbf now redirects to a 404). If this ever moves again, the
+  # download step asks Geofabrik's own index for Sweden's current address.
+  SOURCE_URL: 'https://download.geofabrik.de/europe/sweden/sweden-latest.osm.pbf'
+  SOURCE_INDEX: 'https://download.geofabrik.de/index-v1-nogeom.json'
 
 jobs:
   data:
@@ -48,7 +52,15 @@ jobs:
       - name: Download Sweden from Geofabrik
         run: |
           mkdir -p work
-          curl -fsSL --retry 3 --retry-delay 30 -A 'ellenial-maps-data/2.0 (https://maps.ellenial.app)' -o work/sweden.osm.pbf "$SOURCE_URL"
+          UA='ellenial-maps-data/2.0 (https://maps.ellenial.app)'
+          if ! curl -fsSL --retry 3 --retry-delay 30 -A "$UA" -o work/sweden.osm.pbf "$SOURCE_URL"; then
+            echo "::warning::$SOURCE_URL failed; asking Geofabrik's index for Sweden's current address"
+            URL=$(curl -fsSL --retry 3 --retry-delay 30 -A "$UA" "$SOURCE_INDEX" \
+              | jq -r '.features[].properties | select(.id == "sweden") | .urls.pbf' | head -1)
+            if [ -z "$URL" ] || [ "$URL" = null ]; then echo "::error::Sweden not found in Geofabrik's index"; exit 1; fi
+            echo "::warning::Geofabrik's index says: $URL (update SOURCE_URL)"
+            curl -fsSL --retry 3 --retry-delay 30 -A "$UA" -o work/sweden.osm.pbf "$URL"
+          fi
           ls -lh work/sweden.osm.pbf
       - name: Keep only the tags we use
         run: |
