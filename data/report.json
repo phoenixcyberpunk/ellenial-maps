@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-23T05:34:21.321Z",
+ "generated": "2026-11-23T06:01:17.509Z",
  "source": "Geofabrik Sweden extract (OpenStreetMap)",
  "features": 138759,
  "landmarks": {
@@ -27,9 +27,9 @@
   "wikidata library: 154 with photos",
   "wikidata viewpoint: 23 with photos",
   "photos: 260 matched to Wikidata by name and location (3060 names)",
-  "photos: 106 from photos taken at the place (51 new lookups, 3980 places still to check in later weeks)",
-  "photos: 54 requests to Wikimedia (68 new Wikidata items, 4 new files)",
-  "galleries: 1875 places with a gallery (3 new categories asked, 0 left for later weeks)",
+  "photos: 106 from photos taken at the place (0 new lookups, 4031 places still to check in later weeks)",
+  "photos: 0 requests to Wikimedia (0 new Wikidata items, 0 new files)",
+  "galleries: 1875 places with a gallery (0 new categories asked, 0 left for later weeks)",
   "search: 14092 places, 4685 towns and areas, 292 parts"
  ],
  "counts": {
@@ -65,5 +65,5 @@
   "squares": 705,
   "towns": 4685
  },
- "seconds": 67
+ "seconds": 98
 }
