@@ -5,20 +5,27 @@
 //   1. finds every photo address in data/sweden/ ("src": "/photo/…" or "/thumb/…"),
 //   2. downloads each one once from Wikimedia (a 640 px thumbnail when Wikimedia has one),
 //   3. shrinks it to at most 640 px wide as a JPEG without any metadata (no camera or GPS details),
-//   4. stores it in data/photos/<name>.jpg and points the data at /photos/<name>.jpg,
-//   5. removes copies no place uses any more.
+//   4. uploads it to the Cloudflare R2 bucket as <name>.jpg and points the data at /photos/<name>.jpg
+//      (vercel.json passes /photos/ on to the bucket, so phones still only talk to maps.ellenial.app),
+//   5. removes copies from the bucket that no place has used for 4 weeks.
+// data/photos.json lists every copy in the bucket with its size and the last day a place used it.
+// The photos used to live in data/photos/ and rode along in every Vercel deployment until they
+// filled the free 10 GB Deployment Storage (moved to R2 on 23 Nov 2026).
 // Names come from the source address, so a photo is downloaded once and reused every week.
 // A photo that can't be fetched keeps its old address this week and is tried again next week.
 //
-//   node scripts/fetch-photos.mjs            (needs sharp: npm i --no-save sharp)
+//   node scripts/fetch-photos.mjs            (needs sharp and @aws-sdk/client-s3: npm i --no-save …,
+//                                             and R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY)
 //   node scripts/fetch-photos.mjs --dry-run  (lists what it would fetch, changes nothing)
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
 
 const DATA = 'data/sweden'
-const OUT = 'data/photos'
+const MANIFEST = 'data/photos.json'
+const BUCKET = 'ellenial-maps-photos'
+const KEEP_UNUSED_DAYS = 28 // a copy no place uses is removed only after this long (live pages may still show it)
 const WIDTH = 640
 const MAX_BYTES = 40 * 1024 * 1024 // never pull anything bigger than this
 const BUDGET_MS = 45 * 60 * 1000 // whatever isn't done in time is done next week
@@ -99,8 +106,8 @@ async function main() {
   for (const { d } of docs) normalise(d)
   const all = docs.flatMap(({ f, d }) => photoRecords(d, []).map((r) => ({ f, r })))
   const remote = [...new Set(all.filter((x) => isRemote(x.r.src)).map((x) => x.r.src.split('?')[0]))]
-  if (!existsSync(OUT)) mkdirSync(OUT, { recursive: true })
-  const have = new Set(readdirSync(OUT).filter((n) => n.endsWith('.jpg')))
+  const manifest = existsSync(MANIFEST) ? JSON.parse(readFileSync(MANIFEST, 'utf8')) : {}
+  const have = new Set(Object.keys(manifest))
   const inGallery = new Set(all.filter((x) => x.f.includes('/gallery/')).map((x) => x.r.src.split('?')[0]))
   // Order: place photos before gallery photos, Gothenburg's square (230_23) outwards, so if time
   // runs out the cards people see most are done first.
@@ -110,8 +117,20 @@ async function main() {
   console.log(`photos: ${remote.length} remote addresses, ${remote.length - todo.length} already copied, ${todo.length} to fetch`)
   if (dryRun) { for (const s of todo.slice(0, 20)) console.log('  would fetch', candidates(s)[0]); return }
 
+  for (const k of ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY']) {
+    if (!process.env[k]) throw new Error(`${k} is missing (a GitHub secret)`)
+  }
   const sharp = (await import('sharp')).default
-  const sizes = new Map() // name -> { w, h }
+  const { S3Client, PutObjectCommand, DeleteObjectCommand } = await import('@aws-sdk/client-s3')
+  const r2 = new S3Client({
+    region: 'auto',
+    // The secret may hold just the account ID or the whole endpoint address; keep only the ID.
+    endpoint: `https://${process.env.R2_ACCOUNT_ID.replace(/^https:\/\//, '').split('.')[0]}.r2.cloudflarestorage.com`,
+    credentials: { accessKeyId: process.env.R2_ACCESS_KEY_ID, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY },
+    requestChecksumCalculation: 'WHEN_REQUIRED',
+    responseChecksumValidation: 'WHEN_REQUIRED',
+  })
+  const today = new Date().toISOString().slice(0, 10)
   let fetched = 0, failed = 0
   for (const src of todo) {
     if (Date.now() - started > BUDGET_MS) { console.log('photos: out of time, the rest waits for next week'); break }
@@ -125,21 +144,15 @@ async function main() {
     try {
       const out = await sharp(buf, { failOn: 'none' }).rotate().resize({ width: WIDTH, withoutEnlargement: true })
         .flatten({ background: '#ffffff' }).jpeg({ quality: 78, mozjpeg: true }).toBuffer({ resolveWithObject: true })
-      writeFileSync(join(OUT, nameFor(src)), out.data)
-      sizes.set(nameFor(src), { w: out.info.width, h: out.info.height })
+      // Only a photo that is safely in the bucket gets listed (and so used by the data).
+      await r2.send(new PutObjectCommand({ Bucket: BUCKET, Key: nameFor(src), Body: out.data,
+        ContentType: 'image/jpeg', CacheControl: 'public, max-age=31536000, immutable' }))
+      manifest[nameFor(src)] = { w: out.info.width, h: out.info.height, u: today }
       have.add(nameFor(src))
       fetched++
     } catch (e) {
-      console.warn(`photos: couldn't shrink ${src}: ${e.message}`)
+      console.warn(`photos: couldn't shrink or upload ${src}: ${e.message}`)
       failed++
-    }
-  }
-
-  // Copies from earlier weeks: read their real size, since the rebuilt data carries Wikimedia's.
-  for (const src of remote) {
-    const name = nameFor(src)
-    if (have.has(name) && !sizes.has(name)) {
-      try { const m = await sharp(join(OUT, name)).metadata(); sizes.set(name, { w: m.width, h: m.height }) } catch {}
     }
   }
 
@@ -151,7 +164,8 @@ async function main() {
       const name = nameFor(r.src)
       if (!have.has(name)) continue
       r.src = '/photos/' + name
-      const s = sizes.get(name)
+      // The copy's real size (the rebuilt data carries Wikimedia's)
+      const s = manifest[name]
       if (s) { r.w = s.w; r.h = s.h }
       changed.add(f)
     }
@@ -159,9 +173,15 @@ async function main() {
   }
   for (const { f, d } of docs) if (changed.has(f)) writeFileSync(f, JSON.stringify(d))
 
+  for (const n of used) if (manifest[n]) manifest[n].u = today
   let removed = 0
-  for (const n of readdirSync(OUT)) if (n.endsWith('.jpg') && !used.has(n)) { unlinkSync(join(OUT, n)); removed++ }
-  console.log(`photos: ${fetched} fetched, ${failed} failed (kept their old address), ${removed} unused copies removed, ${used.size} in use`)
+  const cutoff = new Date(Date.now() - KEEP_UNUSED_DAYS * 86400000).toISOString().slice(0, 10)
+  for (const [n, m] of Object.entries(manifest)) {
+    if (used.has(n) || m.u >= cutoff) continue
+    try { await r2.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: n })); delete manifest[n]; removed++ } catch {}
+  }
+  writeFileSync(MANIFEST, JSON.stringify(Object.fromEntries(Object.entries(manifest).sort())))
+  console.log(`photos: ${fetched} fetched, ${failed} failed (kept their old address), ${removed} copies unused for ${KEEP_UNUSED_DAYS} days removed, ${used.size} in use`)
 }
 
 main().catch((e) => { console.error(e); process.exit(1) })

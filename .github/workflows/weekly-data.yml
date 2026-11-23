@@ -101,18 +101,24 @@ jobs:
         run: node --max-old-space-size=6144 scripts/build-data.mjs --input work/area.geojsonseq --towns work/towns.geojsonseq ${{ inputs.allow_drop && '--allow-drop' || '' }}
       # Maps' own small copies of the photos, so the site never forwards requests to Wikimedia
       # (security re-check M1). A photo that can't be fetched keeps its old address until next week.
+      # They're kept in the Cloudflare R2 bucket, not in the repo (23 Nov 2026: in the repo they rode
+      # along in every Vercel deployment and filled its free 10 GB).
       - name: Copy and shrink the photos
         if: steps.build.outcome == 'success'
         continue-on-error: true
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: |
-          npm i --no-save --no-audit --no-fund sharp@0.35
+          npm i --no-save --no-audit --no-fund sharp@0.35 @aws-sdk/client-s3@3
           node scripts/fetch-photos.mjs
       - name: Commit the data and the report if they changed
         if: always()
         run: |
           git config user.name "ellenial-maps weekly data"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A data/sweden data/photos data/photo-cache.json data/report.json 2>/dev/null || true
+          git add -A data/sweden data/photos.json data/photo-cache.json data/report.json 2>/dev/null || true
           if git diff --staged --quiet; then
             echo "No changes this week."
           else

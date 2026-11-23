@@ -49,6 +49,6 @@ copyFileSync('node_modules/lucide-static/LICENSE', 'dist/vendor/lucide-LICENSE.t
 // The places: data/sweden/ (written weekly), or the small offline sample before the first run.
 const data = existsSync('data/sweden/index.json') ? 'data/sweden' : 'data/sample'
 cpSync(data, 'dist/data/sweden', { recursive: true })
-// Maps' own copies of the Commons photos (written weekly by scripts/fetch-photos.mjs) as /photos/.
-if (existsSync('data/photos')) cpSync('data/photos', 'dist/photos', { recursive: true })
+// Maps' own copies of the Commons photos are not part of the build: they live in Cloudflare R2 and
+// vercel.json passes /photos/ on to the bucket (23 Nov 2026, they filled Vercel's free Deployment Storage).
 console.log(`Built dist/ with ${data}`)
