@@ -329,7 +329,8 @@
         h('p', null,
           h('a', { href: 'https://ellenial.app' }, s.footerTool), ' · ',
           h('a', { href: 'https://github.com/phoenixcyberpunk/ellenial-maps' }, s.footerSource), ' · ',
-          h('a', { href: 'https://ellenial.app/thanks' }, s.footerThanks))),
+          h('a', { href: 'https://ellenial.app/thanks' }, s.footerThanks), ' · ',
+          h('a', { href: s.footerFeedbackUrl }, s.footerFeedback))),
       h('div', { class: 'footer__prefs ell-controls' }, langSwitch(), themeSwitch()))
   }
 
